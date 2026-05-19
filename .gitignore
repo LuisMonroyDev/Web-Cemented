@@ -1,0 +1,60 @@
+# --- Python / Django ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+ENV/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# --- Node / React ---
+node_modules/
+.pnp
+.pnp.js
+build/
+dist/
+.next/
+out/
+coverage/
+
+# --- Env files (NEVER commit secrets) ---
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Testing ---
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# --- Misc ---
+*.pid
+*.seed
+*.pid.lock
+.cache/
