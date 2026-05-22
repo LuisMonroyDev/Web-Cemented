@@ -58,3 +58,6 @@ htmlcov/
 *.seed
 *.pid.lock
 .cache/
+
+# --- Personal review logs (kept local, never committed) ---
+*(changes).md
