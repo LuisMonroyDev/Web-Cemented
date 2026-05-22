@@ -5,12 +5,12 @@ The boring stuff. Decide once, never re-debate.
 ## Repo top-level (after build starts)
 
 ```
-band-site/
+Web-Cemented/
 ├── README.md
 ├── .gitignore
-├── docs/                ← all planning + future ADRs
-├── frontend/            ← React app (Vite-based, see below)
-└── backend/             ← Django project
+├── docs/                 all planning + future ADRs
+├── frontend/             React app (Vite-based, see below)
+└── backend/              Django project
 ```
 
 `frontend` and `backend` are siblings, NOT nested. They deploy separately.
@@ -27,20 +27,20 @@ band-site/
 ### Folder structure inside `frontend/src/`
 ```
 src/
-├── main.jsx                  ← entry
-├── App.jsx                   ← top-level layout
-├── components/               ← reusable, dumb-ish UI pieces
+├── main.jsx                   entry
+├── App.jsx                    top-level layout
+├── components/                reusable, dumb-ish UI pieces
 │   ├── MerchCard.jsx
 │   ├── MusicPlayer.jsx
 │   └── ...
-├── sections/                 ← landing-page sections (one per scroll block)
+├── sections/                  landing-page sections (one per scroll block)
 │   ├── HeroSection.jsx
 │   ├── MusicSection.jsx
 │   └── MerchSection.jsx
-├── pages/                    ← only if/when multi-page emerges (cart, checkout-success)
+├── pages/                     only if/when multi-page emerges (cart, checkout-success)
 ├── lib/
-│   ├── api.js                ← all fetch calls to the backend, in one place
-│   └── cart.js               ← cart state management
+│   ├── api.js                 all fetch calls to the backend, in one place
+│   └── cart.js                cart state management
 └── styles/
 ```
 
@@ -71,18 +71,18 @@ Decide before the first component, then never re-decide.
 backend/
 ├── manage.py
 ├── requirements.txt
-├── .env.example              ← committed, real .env is gitignored
-├── config/                   ← Django "project" (settings, root urls)
+├── .env.example               committed, real .env is gitignored
+├── config/                    Django "project" (settings, root urls)
 │   ├── settings/
 │   │   ├── base.py
 │   │   ├── dev.py
 │   │   └── prod.py
 │   ├── urls.py
 │   └── wsgi.py
-└── apps/                     ← Django "apps" — feature-aligned
-    ├── catalog/              ← Product, ProductVariant, ProductImage
-    ├── orders/               ← Order, OrderLineItem, checkout, webhooks
-    └── core/                 ← shared utilities, base models
+└── apps/                      Django "apps" — feature-aligned
+    ├── catalog/               Product, ProductVariant, ProductImage
+    ├── orders/                Order, OrderLineItem, checkout, webhooks
+    └── core/                  shared utilities, base models
 ```
 
 ### Why split settings/

@@ -122,7 +122,7 @@ section is brief — but cannot be empty for an app that takes money.
   Ratelimit is a one-line decorator.
 - **Webhook signature verification** for Stripe webhooks (Stripe signs every
   webhook; reject any with bad signatures)
-- **Admin behind strong password + MFA** (you, as the band's admin)
+- **Admin behind strong password + MFA** (me, as the band's admin)
 - **CORS restricted** to known frontend origins; not `*`
 - **SQL injection** is not a meaningful risk because we're using Django's ORM,
   not raw SQL — but never construct queries via string formatting

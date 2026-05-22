@@ -1,4 +1,4 @@
-# band-site
+# Web-Cemented
 
 Single-page band website with merch store. Built as a learning-first full-stack project.
 
@@ -13,7 +13,7 @@ Single-page band website with merch store. Built as a learning-first full-stack 
 ## Repo layout
 
 ```
-band-site/
+Web-Cemented/
 ├── README.md              ← you are here
 ├── .gitignore
 ├── docs/
