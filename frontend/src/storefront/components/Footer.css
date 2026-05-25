@@ -1,0 +1,37 @@
+.ftr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 30px var(--pad);
+  background: var(--bg);
+  border-top: 1px solid var(--hairline);
+}
+.ftr__copy {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+.ftr__social {
+  display: flex;
+  gap: 24px;
+}
+.ftr__social a {
+  color: var(--bone);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ftr__social a:hover {
+  color: var(--red-bright);
+}
+
+@media (max-width: 700px) {
+  .ftr {
+    flex-direction: column;
+    text-align: center;
+  }
+}

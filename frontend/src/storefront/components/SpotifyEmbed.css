@@ -1,0 +1,10 @@
+.listen__player {
+  margin-top: 24px;
+  max-width: 1360px;
+}
+.listen__player iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+}
