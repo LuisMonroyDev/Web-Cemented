@@ -1,13 +1,27 @@
+import { useEffect, useState } from "react";
 import "./SpotifyEmbed.css";
+import { fetchSiteSettings } from "../../lib/api";
 
-// Replace PLACEHOLDER with your real Spotify album/playlist id, e.g.
-//   album:  https://open.spotify.com/embed/album/<ID>
-//   playlist: https://open.spotify.com/embed/playlist/<ID>
-// theme=0 keeps Spotify's dark player, which matches the site.
-const SPOTIFY_EMBED =
+// Used until the backend provides one, and if the API is unreachable.
+// Must be a Spotify *embed* URL (https://open.spotify.com/embed/...).
+const FALLBACK_EMBED =
   "https://open.spotify.com/embed/album/2kqnBO94DQyk82mJt0OQ5e?utm_source=generator&theme=0";
 
 export default function SpotifyEmbed() {
+  const [src, setSrc] = useState(FALLBACK_EMBED);
+
+  useEffect(() => {
+    let active = true;
+    fetchSiteSettings()
+      .then((settings) => {
+        if (active && settings.spotify_embed_url) setSrc(settings.spotify_embed_url);
+      })
+      .catch(() => {}); // keep the fallback if the API isn't reachable
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <section className="section listen" id="music">
       <div className="section__head">
@@ -18,7 +32,7 @@ export default function SpotifyEmbed() {
       <div className="listen__player">
         <iframe
           title="Cemented on Spotify"
-          src={SPOTIFY_EMBED}
+          src={src}
           width="100%"
           height="352"
           loading="lazy"

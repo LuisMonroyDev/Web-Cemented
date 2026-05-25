@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "corsheaders",
     # Project apps
     "apps.core",
+    "apps.store",
 ]
 
 MIDDLEWARE = [
