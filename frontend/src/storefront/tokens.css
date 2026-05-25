@@ -1,0 +1,58 @@
+/* Cemented storefront — design tokens (from the Figma palette)
+   Scoped to .storefront so they don't collide with the app's global :root. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+.storefront {
+  /* color */
+  --bg: #0a0a0a;
+  --surface: #161616;
+  --surface-2: #242424;
+  --bone: #e7e2d6;
+  --bone-dim: #9a958c;
+  --red: #a81d1d;
+  --red-bright: #c0241f;
+  --hairline: #2a2a2a;
+
+  /* type + layout */
+  --font: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+  --pad: 40px;
+  --maxw: 1440px;
+
+  background: var(--bg);
+  color: var(--bone);
+  font-family: var(--font);
+  letter-spacing: 0.01em;
+  min-height: 100vh;
+}
+
+/* shared section scaffolding */
+.storefront .section {
+  padding: 52px var(--pad);
+}
+.storefront .section__head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.storefront .section__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bone);
+}
+.storefront .section__rule {
+  width: 56px;
+  height: 5px;
+  background: var(--red);
+}
+
+@media (max-width: 700px) {
+  .storefront {
+    --pad: 20px;
+  }
+  .storefront .section {
+    padding: 36px var(--pad);
+  }
+}

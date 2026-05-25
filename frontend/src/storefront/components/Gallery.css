@@ -1,0 +1,42 @@
+.gallery {
+  background: var(--bg);
+}
+
+/* full-bleed horizontal strip; scroll-snap gives the seamless side-scroll */
+.gallery__track {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+.gallery__track::-webkit-scrollbar {
+  display: none; /* WebKit */
+}
+
+.gallery__item {
+  flex: 0 0 540px;
+  height: 760px;
+  margin: 0;
+  scroll-snap-align: start;
+  background-color: var(--surface-2);
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gallery__ph {
+  color: #555;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 700px) {
+  .gallery__item {
+    flex-basis: 82vw;
+    height: 64vh;
+  }
+}

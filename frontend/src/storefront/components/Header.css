@@ -1,0 +1,87 @@
+.hdr {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 22px var(--pad);
+  background: var(--bg);
+  border-bottom: 1px solid var(--hairline);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.hdr__est {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.hdr__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  justify-self: center;
+}
+.hdr__logolink {
+  display: block;
+  line-height: 0;
+}
+.hdr__logo {
+  height: 125px; /* brand size — tweak this one number to taste */
+  width: auto;
+  max-width: 80vw;
+  display: block;
+  object-fit: contain;
+}
+.hdr__wordmark {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bone);
+  text-decoration: none;
+}
+.hdr__tag {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.hdr__nav {
+  justify-self: end;
+  display: flex;
+  gap: 24px;
+}
+.hdr__nav a {
+  color: var(--bone);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.hdr__nav a:hover {
+  color: var(--red-bright);
+}
+
+@media (max-width: 700px) {
+  .hdr {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+    gap: 12px;
+  }
+  .hdr__est {
+    display: none;
+  }
+  .hdr__nav {
+    justify-self: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+  }
+}
