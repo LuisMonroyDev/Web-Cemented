@@ -1,6 +1,7 @@
 import { useState } from "react";
 import "./Header.css";
 import logoSrc from "../../assets/cemented_logo_web.png";
+import { ADMIN_URL } from "../../lib/api";
 
 // Logo is bundled by Vite from src/assets. If it ever fails to load,
 // the header falls back to the "Cemented" wordmark.
@@ -28,14 +29,16 @@ export default function Header() {
             Cemented
           </a>
         )}
-        <span className="hdr__tag">[ Est. 2026 — Heavy DIY Hardcore ]</span>
+        <span className="hdr__tag">[ Est. 2025 ]</span>
       </div>
 
       <nav className="hdr__nav">
-        <a href="#shop">Shop</a>
         <a href="#music">Music</a>
         <a href="#merch">Merch</a>
         <a href="#cart">Cart (0)</a>
+        <a className="hdr__login" href={ADMIN_URL} target="_blank" rel="noopener noreferrer">
+          Log in
+        </a>
       </nav>
     </header>
   );
