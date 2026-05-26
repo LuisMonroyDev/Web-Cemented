@@ -1,0 +1,135 @@
+import { useCallback, useEffect, useState } from "react";
+
+import * as api from "../lib/api";
+import { StoreContext } from "./storeContext";
+
+const EMPTY_CART = { items: [], total: "0.00" };
+
+export function StoreProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [cart, setCart] = useState(EMPTY_CART);
+  const [ready, setReady] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
+
+  const loadCart = useCallback(async () => {
+    try {
+      setCart(await api.fetchCart());
+    } catch {
+      setCart(EMPTY_CART);
+    }
+  }, []);
+
+  // Hydrate auth + cart on load (401 just means "not logged in").
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const me = await api.fetchMe();
+        if (!active) return;
+        setUser(me);
+        await loadCart();
+      } catch {
+        if (active) setUser(null);
+      } finally {
+        if (active) setReady(true);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [loadCart]);
+
+  const signIn = useCallback(
+    async (username, password) => {
+      setUser(await api.login(username, password));
+      await loadCart();
+      setAuthOpen(false);
+    },
+    [loadCart],
+  );
+
+  const signUp = useCallback(
+    async (payload) => {
+      setUser(await api.register(payload));
+      await loadCart();
+      setAuthOpen(false);
+    },
+    [loadCart],
+  );
+
+  const signOut = useCallback(async () => {
+    try {
+      await api.logout();
+    } catch {
+      // logging out locally is enough even if the request fails
+    }
+    setUser(null);
+    setCart(EMPTY_CART);
+    setCartOpen(false);
+  }, []);
+
+  const addToCart = useCallback(
+    async (productId, quantity = 1) => {
+      if (!user) {
+        setAuthOpen(true); // must be signed in to have a cart
+        return;
+      }
+      try {
+        setCart(await api.addToCart(productId, quantity));
+        setCartOpen(true);
+      } catch {
+        // e.g. a placeholder product that isn't in the DB — ignore
+      }
+    },
+    [user],
+  );
+
+  const updateItem = useCallback(async (itemId, quantity) => {
+    try {
+      setCart(await api.updateCartItem(itemId, quantity));
+    } catch {
+      // ignore transient errors
+    }
+  }, []);
+
+  const removeItem = useCallback(async (itemId) => {
+    try {
+      setCart(await api.removeCartItem(itemId));
+    } catch {
+      // ignore transient errors
+    }
+  }, []);
+
+  // Throws on failure (e.g. Stripe not configured) so the cart UI can show it.
+  const startCheckout = useCallback(async () => {
+    const data = await api.checkout();
+    if (data?.checkout_url) {
+      window.location.href = data.checkout_url;
+    }
+  }, []);
+
+  const count = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+
+  const value = {
+    user,
+    cart,
+    count,
+    ready,
+    authOpen,
+    cartOpen,
+    openAuth: () => setAuthOpen(true),
+    closeAuth: () => setAuthOpen(false),
+    openCart: () => setCartOpen(true),
+    closeCart: () => setCartOpen(false),
+    signIn,
+    signUp,
+    signOut,
+    addToCart,
+    updateItem,
+    removeItem,
+    startCheckout,
+  };
+
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+}

@@ -9,9 +9,15 @@ See docs/plan/03-conventions.md for why the settings are split this way.
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # Points at the backend/ directory. This file is backend/config/settings/base.py,
 # so the project root is three levels up.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+# Load backend/.env (if present) so local secrets — Stripe keys, etc. — are
+# available via os.environ. Real environment variables still take precedence.
+load_dotenv(BASE_DIR / ".env")
 
 # A real, secret value must be provided via the environment in production.
 # The insecure fallback is acceptable for local development only.
@@ -99,3 +105,17 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # See docs/plan/01-architecture.md, "Media / image storage".
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# --- Stripe ---
+# Secrets come from the environment; the secret key never reaches the frontend.
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+
+# Where Stripe's hosted checkout returns the customer (frontend URLs).
+CHECKOUT_SUCCESS_URL = os.environ.get(
+    "CHECKOUT_SUCCESS_URL", "http://localhost:5173/?checkout=success"
+)
+CHECKOUT_CANCEL_URL = os.environ.get(
+    "CHECKOUT_CANCEL_URL", "http://localhost:5173/?checkout=cancel"
+)

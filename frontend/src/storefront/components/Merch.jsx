@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import "./Merch.css";
 import { products as fallbackProducts } from "../data/products";
 import { fetchProducts } from "../../lib/api";
+import { useStore } from "../storeContext";
 
 export default function Merch() {
   const [products, setProducts] = useState(fallbackProducts);
+  const { addToCart } = useStore();
 
   useEffect(() => {
     let active = true;
@@ -36,7 +38,7 @@ export default function Merch() {
             </div>
             <h3 className="card__name">{product.name}</h3>
             <p className="card__price">${product.price}</p>
-            <button className="card__btn" type="button">
+            <button className="card__btn" type="button" onClick={() => addToCart(product.id)}>
               Add to Cart
             </button>
           </article>

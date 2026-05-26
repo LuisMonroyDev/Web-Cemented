@@ -1,11 +1,16 @@
-"""Cart endpoints — all require a logged-in customer."""
+"""Cart endpoints (login-required) + Stripe checkout and webhook."""
+import stripe
+from django.conf import settings
+from django.http import HttpResponse, HttpResponseBadRequest
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.store.models import Product
 
-from .models import Cart, CartItem
+from .models import Cart, CartItem, Order, OrderItem
 from .serializers import CartSerializer
 
 
@@ -20,6 +25,9 @@ def _cart_response(cart, request, status_code=status.HTTP_200_OK):
     )
 
 
+# --------------------------------------------------------------------------- #
+# Cart
+# --------------------------------------------------------------------------- #
 class CartView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -76,3 +84,104 @@ class CartItemDetailView(APIView):
         cart = _get_cart(request.user)
         CartItem.objects.filter(id=item_id, cart=cart).delete()
         return _cart_response(cart, request)
+
+
+# --------------------------------------------------------------------------- #
+# Checkout (Stripe hosted Checkout Session)
+# --------------------------------------------------------------------------- #
+class CheckoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        cart = _get_cart(request.user)
+        items = list(cart.items.select_related("product"))
+        if not items:
+            return Response(
+                {"detail": "Your cart is empty."}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if not settings.STRIPE_SECRET_KEY:
+            return Response(
+                {"detail": "Payments are not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+
+        order = Order.objects.create(
+            user=request.user, email=request.user.email, status=Order.STATUS_PENDING
+        )
+        line_items = []
+        total = 0
+        for item in items:
+            unit_price = item.product.price  # priced from the DB, never the client
+            total += unit_price * item.quantity
+            line_items.append(
+                {
+                    "price_data": {
+                        "currency": "usd",
+                        "product_data": {"name": item.product.name},
+                        "unit_amount": int(unit_price * 100),  # cents
+                    },
+                    "quantity": item.quantity,
+                }
+            )
+            OrderItem.objects.create(
+                order=order,
+                product=item.product,
+                name=item.product.name,
+                unit_price=unit_price,
+                quantity=item.quantity,
+            )
+        order.total = total
+        order.save()
+
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            line_items=line_items,
+            success_url=settings.CHECKOUT_SUCCESS_URL,
+            cancel_url=settings.CHECKOUT_CANCEL_URL,
+            client_reference_id=str(order.id),
+            customer_email=request.user.email or None,
+            metadata={"order_id": str(order.id)},
+        )
+        order.stripe_session_id = session.id
+        order.save(update_fields=["stripe_session_id"])
+        return Response({"checkout_url": session.url})
+
+
+# --------------------------------------------------------------------------- #
+# Stripe webhook — the source of truth for payment (NOT the redirect)
+# --------------------------------------------------------------------------- #
+def _fulfill_checkout(session):
+    order_id = (session.get("metadata") or {}).get("order_id") or session.get(
+        "client_reference_id"
+    )
+    order = Order.objects.filter(id=order_id).first()
+    if order is None:
+        return
+    order.status = Order.STATUS_PAID
+    order.stripe_payment_intent = session.get("payment_intent") or ""
+    order.save()
+    if order.user_id:  # empty the cart now that they've paid
+        CartItem.objects.filter(cart__user_id=order.user_id).delete()
+
+
+@csrf_exempt
+@require_POST
+def stripe_webhook(request):
+    if not settings.STRIPE_WEBHOOK_SECRET:
+        return HttpResponse(status=503)
+    try:
+        event = stripe.Webhook.construct_event(
+            request.body,
+            request.META.get("HTTP_STRIPE_SIGNATURE", ""),
+            settings.STRIPE_WEBHOOK_SECRET,
+        )
+    except ValueError:
+        return HttpResponseBadRequest("Invalid payload")
+    except stripe.error.SignatureVerificationError:
+        return HttpResponseBadRequest("Invalid signature")
+
+    if event["type"] == "checkout.session.completed":
+        _fulfill_checkout(event["data"]["object"])
+    return HttpResponse(status=200)

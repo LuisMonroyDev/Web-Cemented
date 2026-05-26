@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./Header.css";
 import logoSrc from "../../assets/cemented_logo_web.png";
-import { ADMIN_URL } from "../../lib/api";
+import { useStore } from "../storeContext";
 
 // Logo is bundled by Vite from src/assets. If it ever fails to load,
 // the header falls back to the "Cemented" wordmark.
@@ -9,6 +9,7 @@ const LOGO_SRC = logoSrc;
 
 export default function Header() {
   const [logoOk, setLogoOk] = useState(true);
+  const { user, count, openAuth, openCart, signOut } = useStore();
 
   return (
     <header className="hdr">
@@ -35,10 +36,21 @@ export default function Header() {
       <nav className="hdr__nav">
         <a href="#music">Music</a>
         <a href="#merch">Merch</a>
-        <a href="#cart">Cart (0)</a>
-        <a className="hdr__login" href={ADMIN_URL} target="_blank" rel="noopener noreferrer">
-          Log in
-        </a>
+        <button type="button" className="hdr__btn" onClick={openCart}>
+          Cart ({count})
+        </button>
+        {user ? (
+          <>
+            <span className="hdr__user">{user.username}</span>
+            <button type="button" className="hdr__btn hdr__login" onClick={signOut}>
+              Log out
+            </button>
+          </>
+        ) : (
+          <button type="button" className="hdr__btn hdr__login" onClick={openAuth}>
+            Log in
+          </button>
+        )}
       </nav>
     </header>
   );
