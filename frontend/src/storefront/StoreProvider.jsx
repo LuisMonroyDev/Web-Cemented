@@ -11,6 +11,7 @@ export function StoreProvider({ children }) {
   const [ready, setReady] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [checkoutStatus, setCheckoutStatus] = useState(null); // "success" | "cancel" | null
 
   const loadCart = useCallback(async () => {
     try {
@@ -23,12 +24,28 @@ export function StoreProvider({ children }) {
   // Hydrate auth + cart on load (401 just means "not logged in").
   useEffect(() => {
     let active = true;
+
+    // Returning from Stripe's hosted checkout (?checkout=success|cancel).
+    // Capture it, then strip the param so a refresh won't re-show the banner.
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get("checkout");
+    if (checkout === "success" || checkout === "cancel") {
+      setCheckoutStatus(checkout);
+      params.delete("checkout");
+      const query = params.toString();
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname + (query ? `?${query}` : "") + window.location.hash,
+      );
+    }
+
     (async () => {
       try {
         const me = await api.fetchMe();
         if (!active) return;
         setUser(me);
-        await loadCart();
+        await loadCart(); // after a paid order the webhook has emptied this
       } catch {
         if (active) setUser(null);
       } finally {
@@ -109,6 +126,8 @@ export function StoreProvider({ children }) {
     }
   }, []);
 
+  const dismissCheckout = useCallback(() => setCheckoutStatus(null), []);
+
   const count = cart.items.reduce((sum, item) => sum + item.quantity, 0);
 
   const value = {
@@ -118,6 +137,8 @@ export function StoreProvider({ children }) {
     ready,
     authOpen,
     cartOpen,
+    checkoutStatus,
+    dismissCheckout,
     openAuth: () => setAuthOpen(true),
     closeAuth: () => setAuthOpen(false),
     openCart: () => setCartOpen(true),
