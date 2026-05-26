@@ -1,8 +1,12 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from apps.store.models import Product
+
+from .models import Cart, CartItem, Order, OrderItem
 
 
 class CartTests(TestCase):
@@ -26,7 +30,6 @@ class CartTests(TestCase):
             format="json",
         )
         self.assertEqual(added.status_code, 201)
-
         cart = self.client.get("/api/cart/")
         self.assertEqual(len(cart.data["items"]), 1)
         self.assertEqual(str(cart.data["total"]), "40.00")
@@ -42,3 +45,82 @@ class CartTests(TestCase):
         cart = self.client.get("/api/cart/")
         self.assertEqual(len(cart.data["items"]), 1)
         self.assertEqual(cart.data["items"][0]["quantity"], 2)
+
+
+@override_settings(STRIPE_SECRET_KEY="sk_test_dummy")
+class CheckoutTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = get_user_model().objects.create_user(
+            "fan", "fan@example.com", "Sup3rSecret!"
+        )
+        self.product = Product.objects.create(
+            name="Tour Tee", price=20, stock=10, is_active=True
+        )
+
+    def test_checkout_requires_auth(self):
+        self.assertIn(self.client.post("/api/checkout/").status_code, (401, 403))
+
+    def test_empty_cart_rejected(self):
+        self.client.force_authenticate(self.user)
+        self.assertEqual(self.client.post("/api/checkout/").status_code, 400)
+
+    @patch("apps.orders.views.stripe.checkout.Session.create")
+    def test_creates_order_and_returns_url(self, mock_create):
+        mock_create.return_value = type(
+            "Session", (), {"id": "cs_test_123", "url": "https://stripe.test/cs_test_123"}
+        )()
+        self.client.force_authenticate(self.user)
+        self.client.post(
+            "/api/cart/items/",
+            {"product_id": self.product.id, "quantity": 2},
+            format="json",
+        )
+        res = self.client.post("/api/checkout/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["checkout_url"], "https://stripe.test/cs_test_123")
+
+        order = Order.objects.get()
+        self.assertEqual(str(order.total), "40.00")
+        self.assertEqual(order.items.count(), 1)
+        self.assertEqual(order.stripe_session_id, "cs_test_123")
+        # Stripe was asked to charge 2000 cents/unit, qty 2.
+        line_items = mock_create.call_args.kwargs["line_items"]
+        self.assertEqual(line_items[0]["price_data"]["unit_amount"], 2000)
+
+
+@override_settings(STRIPE_WEBHOOK_SECRET="whsec_dummy")
+class WebhookTests(TestCase):
+    @patch("apps.orders.views.stripe.Webhook.construct_event")
+    def test_completed_session_marks_paid_and_clears_cart(self, mock_construct):
+        user = get_user_model().objects.create_user(
+            "fan", "fan@example.com", "Sup3rSecret!"
+        )
+        product = Product.objects.create(name="Tee", price=20, stock=5, is_active=True)
+        cart = Cart.objects.create(user=user)
+        CartItem.objects.create(cart=cart, product=product, quantity=2)
+        order = Order.objects.create(user=user, status=Order.STATUS_PENDING, total=40)
+        OrderItem.objects.create(
+            order=order, product=product, name="Tee", unit_price=20, quantity=2
+        )
+
+        mock_construct.return_value = {
+            "type": "checkout.session.completed",
+            "data": {
+                "object": {
+                    "metadata": {"order_id": str(order.id)},
+                    "payment_intent": "pi_123",
+                }
+            },
+        }
+        res = self.client.post(
+            "/api/webhooks/stripe/",
+            data="{}",
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE="t=1,v1=sig",
+        )
+        self.assertEqual(res.status_code, 200)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.STATUS_PAID)
+        self.assertEqual(order.stripe_payment_intent, "pi_123")
+        self.assertEqual(CartItem.objects.filter(cart=cart).count(), 0)

@@ -1,0 +1,107 @@
+.authmodal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.authmodal__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+}
+.authmodal__card {
+  position: relative;
+  width: 360px;
+  max-width: 90vw;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  padding: 28px;
+  color: var(--bone);
+}
+.authmodal__close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: var(--bone-dim);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.authmodal__brand {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+.authmodal__title {
+  margin: 0 0 18px;
+  font-size: 22px;
+  font-weight: 800;
+}
+.authmodal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.authmodal__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+.authmodal__form input {
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--bone);
+  font: inherit;
+}
+.authmodal__form input:focus {
+  outline: none;
+  border-color: var(--bone-dim);
+}
+.authmodal__error {
+  margin: 0;
+  color: var(--red-bright);
+  font-size: 13px;
+}
+.authmodal__submit {
+  margin-top: 4px;
+  padding: 11px;
+  background: var(--bone);
+  color: var(--bg);
+  border: none;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.authmodal__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.authmodal__toggle {
+  margin: 16px 0 0;
+  font-size: 13px;
+  color: var(--bone-dim);
+}
+.authmodal__toggle button {
+  background: none;
+  border: none;
+  color: var(--red-bright);
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
