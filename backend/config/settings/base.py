@@ -33,7 +33,20 @@ INSTALLED_APPS = [
     # Project apps
     "apps.core",
     "apps.store",
+    "apps.accounts",
+    "apps.orders",
 ]
+
+# DRF: authenticate via Django sessions (same mechanism as the admin). Endpoints
+# are public by default; views opt into auth with permission_classes.
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.AllowAny",
+    ],
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

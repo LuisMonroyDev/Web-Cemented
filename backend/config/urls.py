@@ -9,6 +9,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("apps.core.urls")),
     path("api/", include("apps.store.urls")),
+    path("api/", include("apps.accounts.urls")),
+    path("api/", include("apps.orders.urls")),
 ]
 
 # Serve uploaded media (product/gallery images) from the dev server so the

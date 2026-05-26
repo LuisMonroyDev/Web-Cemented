@@ -27,3 +27,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# Session auth from the SPA: allow the session/CSRF cookies to ride along on
+# cross-origin requests, and trust the frontend origin for CSRF on writes.
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
