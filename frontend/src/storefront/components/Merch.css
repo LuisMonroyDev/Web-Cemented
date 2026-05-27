@@ -58,3 +58,13 @@
   border-color: var(--red);
   color: var(--red-bright);
 }
+.card__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: var(--hairline);
+  color: var(--bone-dim);
+}
+.card__btn:disabled:hover {
+  border-color: var(--hairline);
+  color: var(--bone-dim);
+}

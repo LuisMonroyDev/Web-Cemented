@@ -28,21 +28,29 @@ export default function Merch() {
       </div>
 
       <div className="merch__grid">
-        {products.map((product) => (
-          <article className="card" key={product.id}>
-            <div
-              className="card__img"
-              style={product.image ? { backgroundImage: `url(${product.image})` } : undefined}
-            >
-              {!product.image && <span className="card__ph">Merch</span>}
-            </div>
-            <h3 className="card__name">{product.name}</h3>
-            <p className="card__price">${product.price}</p>
-            <button className="card__btn" type="button" onClick={() => addToCart(product.id)}>
-              Add to Cart
-            </button>
-          </article>
-        ))}
+        {products.map((product) => {
+          const soldOut = product.stock === 0;
+          return (
+            <article className="card" key={product.id}>
+              <div
+                className="card__img"
+                style={product.image ? { backgroundImage: `url(${product.image})` } : undefined}
+              >
+                {!product.image && <span className="card__ph">Merch</span>}
+              </div>
+              <h3 className="card__name">{product.name}</h3>
+              <p className="card__price">${product.price}</p>
+              <button
+                className="card__btn"
+                type="button"
+                disabled={soldOut}
+                onClick={() => addToCart(product.id)}
+              >
+                {soldOut ? "Sold out" : "Add to Cart"}
+              </button>
+            </article>
+          );
+        })}
       </div>
     </section>
   );

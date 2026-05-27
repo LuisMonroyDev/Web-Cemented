@@ -46,6 +46,11 @@ class CartItemsView(APIView):
             return Response(
                 {"detail": "Product not found."}, status=status.HTTP_404_NOT_FOUND
             )
+        if product.stock <= 0:
+            return Response(
+                {"detail": "This item is out of stock."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         try:
             quantity = max(1, int(request.data.get("quantity", 1)))
         except (TypeError, ValueError):
@@ -53,10 +58,13 @@ class CartItemsView(APIView):
 
         cart = _get_cart(request.user)
         item, created = CartItem.objects.get_or_create(
-            cart=cart, product=product, defaults={"quantity": quantity}
+            cart=cart,
+            product=product,
+            defaults={"quantity": min(quantity, product.stock)},
         )
         if not created:
-            item.quantity += quantity
+            # never let a line exceed what's actually in stock
+            item.quantity = min(item.quantity + quantity, product.stock)
             item.save()
         return _cart_response(cart, request, status.HTTP_201_CREATED)
 
@@ -99,6 +107,18 @@ class CheckoutView(APIView):
             return Response(
                 {"detail": "Your cart is empty."}, status=status.HTTP_400_BAD_REQUEST
             )
+        # Re-check stock at checkout — it may have changed since items were added.
+        for item in items:
+            if item.quantity > item.product.stock:
+                return Response(
+                    {
+                        "detail": (
+                            f"Not enough stock for {item.product.name} "
+                            f"(only {item.product.stock} left)."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         if not settings.STRIPE_SECRET_KEY:
             return Response(
                 {"detail": "Payments are not configured."},
@@ -162,6 +182,11 @@ def _fulfill_checkout(session):
     order.status = Order.STATUS_PAID
     order.stripe_payment_intent = session.get("payment_intent") or ""
     order.save()
+    # Decrement inventory for what was purchased.
+    for line in order.items.all():
+        if line.product:
+            line.product.stock = max(0, line.product.stock - line.quantity)
+            line.product.save(update_fields=["stock"])
     if order.user_id:  # empty the cart now that they've paid
         CartItem.objects.filter(cart__user_id=order.user_id).delete()
 
