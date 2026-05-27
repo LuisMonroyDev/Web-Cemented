@@ -172,15 +172,26 @@ class CheckoutView(APIView):
 # --------------------------------------------------------------------------- #
 # Stripe webhook — the source of truth for payment (NOT the redirect)
 # --------------------------------------------------------------------------- #
+def _field(obj, key, default=None):
+    """Read a key from a Stripe object or a plain dict.
+
+    Stripe objects support subscripting (obj[key]) but NOT dict.get() or
+    dict(obj), so subscript-with-fallback is the only access that works for both.
+    """
+    try:
+        return obj[key]
+    except (KeyError, TypeError):
+        return default
+
+
 def _fulfill_checkout(session):
-    order_id = (session.get("metadata") or {}).get("order_id") or session.get(
-        "client_reference_id"
-    )
+    metadata = _field(session, "metadata") or {}
+    order_id = _field(metadata, "order_id") or _field(session, "client_reference_id")
     order = Order.objects.filter(id=order_id).first()
     if order is None:
         return
     order.status = Order.STATUS_PAID
-    order.stripe_payment_intent = session.get("payment_intent") or ""
+    order.stripe_payment_intent = _field(session, "payment_intent") or ""
     order.save()
     # Decrement inventory for what was purchased.
     for line in order.items.all():

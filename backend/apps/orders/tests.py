@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+import stripe
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
@@ -124,14 +125,20 @@ class WebhookTests(TestCase):
             order=order, product=product, name="Tee", unit_price=20, quantity=2
         )
 
+        # A real Stripe object — it supports [] but not .get() or dict(), which
+        # is exactly the shape that broke the live webhook. A plain dict here
+        # would hide the bug.
+        session_obj = stripe.checkout.Session.construct_from(
+            {
+                "metadata": {"order_id": str(order.id)},
+                "payment_intent": "pi_123",
+                "client_reference_id": str(order.id),
+            },
+            "sk_test_dummy",
+        )
         mock_construct.return_value = {
             "type": "checkout.session.completed",
-            "data": {
-                "object": {
-                    "metadata": {"order_id": str(order.id)},
-                    "payment_intent": "pi_123",
-                }
-            },
+            "data": {"object": session_obj},
         }
         res = self.client.post(
             "/api/webhooks/stripe/",
