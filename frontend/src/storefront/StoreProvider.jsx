@@ -5,13 +5,22 @@ import { StoreContext } from "./storeContext";
 
 const EMPTY_CART = { items: [], total: "0.00" };
 
+// Read the ?checkout result from the URL. Used as useState's lazy initializer
+// so the banner is decided at render time — never dependent on effect timing
+// (including React StrictMode's dev double-invoke, which strips the param).
+function readCheckoutParam() {
+  if (typeof window === "undefined") return null;
+  const value = new URLSearchParams(window.location.search).get("checkout");
+  return value === "success" || value === "cancel" ? value : null;
+}
+
 export function StoreProvider({ children }) {
   const [user, setUser] = useState(null);
   const [cart, setCart] = useState(EMPTY_CART);
   const [ready, setReady] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
-  const [checkoutStatus, setCheckoutStatus] = useState(null); // "success" | "cancel" | null
+  const [checkoutStatus, setCheckoutStatus] = useState(readCheckoutParam); // from the URL
 
   const loadCart = useCallback(async () => {
     try {
@@ -25,12 +34,10 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     let active = true;
 
-    // Returning from Stripe's hosted checkout (?checkout=success|cancel).
-    // Capture it, then strip the param so a refresh won't re-show the banner.
+    // checkoutStatus is initialised from the URL at render time; here we only
+    // strip the ?checkout param so a refresh won't re-show the banner.
     const params = new URLSearchParams(window.location.search);
-    const checkout = params.get("checkout");
-    if (checkout === "success" || checkout === "cancel") {
-      setCheckoutStatus(checkout);
+    if (params.has("checkout")) {
       params.delete("checkout");
       const query = params.toString();
       window.history.replaceState(
