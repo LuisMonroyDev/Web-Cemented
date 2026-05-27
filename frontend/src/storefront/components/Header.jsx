@@ -9,7 +9,7 @@ const LOGO_SRC = logoSrc;
 
 export default function Header() {
   const [logoOk, setLogoOk] = useState(true);
-  const { user, count, openAuth, openCart, signOut } = useStore();
+  const { user, count, openAuth, openCart, openAccount } = useStore();
 
   return (
     <header className="hdr">
@@ -40,12 +40,9 @@ export default function Header() {
           Cart ({count})
         </button>
         {user ? (
-          <>
-            <span className="hdr__user">{user.username}</span>
-            <button type="button" className="hdr__btn hdr__login" onClick={signOut}>
-              Log out
-            </button>
-          </>
+          <button type="button" className="hdr__btn hdr__account" onClick={openAccount}>
+            {user.username}
+          </button>
         ) : (
           <button type="button" className="hdr__btn hdr__login" onClick={openAuth}>
             Log in

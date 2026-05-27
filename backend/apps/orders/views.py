@@ -4,14 +4,14 @@ from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from rest_framework import permissions, status
+from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.store.models import Product
 
 from .models import Cart, CartItem, Order, OrderItem
-from .serializers import CartSerializer
+from .serializers import CartSerializer, OrderSerializer
 
 
 def _get_cart(user):
@@ -28,6 +28,18 @@ def _cart_response(cart, request, status_code=status.HTTP_200_OK):
 # --------------------------------------------------------------------------- #
 # Cart
 # --------------------------------------------------------------------------- #
+class OrderListView(generics.ListAPIView):
+    """The current customer's paid orders, newest first."""
+
+    serializer_class = OrderSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Order.objects.filter(
+            user=self.request.user, status=Order.STATUS_PAID
+        )
+
+
 class CartView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
