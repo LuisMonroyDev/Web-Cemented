@@ -4,3 +4,4 @@ django-cors-headers==4.9.0
 Pillow==11.1.0
 stripe==15.1.0
 python-dotenv==1.2.2
+django-anymail[resend]==15.0

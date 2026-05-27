@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import stripe
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
@@ -177,3 +178,28 @@ class OrdersApiTests(TestCase):
         res = self.client.get("/api/orders/")
         self.assertEqual(res.status_code, 200)
         self.assertEqual([o["id"] for o in res.data], [paid.id])
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    BAND_NOTIFICATION_EMAIL="band@cemented.band",
+    DEFAULT_FROM_EMAIL="orders@cemented.band",
+)
+class OrderEmailTests(TestCase):
+    def test_paid_order_emails_customer_and_band(self):
+        from apps.orders.emails import send_order_emails
+
+        user = get_user_model().objects.create_user(
+            "fan", "fan@example.com", "Sup3rSecret!"
+        )
+        order = Order.objects.create(
+            user=user, email="fan@example.com", status=Order.STATUS_PAID, total=25
+        )
+        OrderItem.objects.create(order=order, name="Tee", unit_price=25, quantity=1)
+
+        send_order_emails(order)
+
+        self.assertEqual(len(mail.outbox), 2)
+        recipients = {addr for message in mail.outbox for addr in message.to}
+        self.assertIn("fan@example.com", recipients)
+        self.assertIn("band@cemented.band", recipients)
