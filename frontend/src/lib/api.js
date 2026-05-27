@@ -69,3 +69,6 @@ export const removeCartItem = (itemId) =>
 
 // --- checkout ---
 export const checkout = () => request("/api/checkout/", { method: "POST" });
+
+// --- orders ---
+export const fetchOrders = () => request("/api/orders/");

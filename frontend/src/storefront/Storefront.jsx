@@ -8,6 +8,7 @@ import Footer from "./components/Footer";
 import AuthModal from "./components/AuthModal";
 import CartDrawer from "./components/CartDrawer";
 import CheckoutBanner from "./components/CheckoutBanner";
+import AccountDrawer from "./components/AccountDrawer";
 
 export default function Storefront() {
   return (
@@ -21,6 +22,7 @@ export default function Storefront() {
         <Footer />
         <AuthModal />
         <CartDrawer />
+        <AccountDrawer />
       </div>
     </StoreProvider>
   );

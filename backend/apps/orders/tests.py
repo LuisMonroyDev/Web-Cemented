@@ -146,3 +146,27 @@ class WebhookTests(TestCase):
         self.assertEqual(CartItem.objects.filter(cart=cart).count(), 0)
         product.refresh_from_db()
         self.assertEqual(product.stock, 3)  # 5 - 2 sold
+
+
+class OrdersApiTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = get_user_model().objects.create_user(
+            "fan", "fan@example.com", "Sup3rSecret!"
+        )
+
+    def test_orders_require_auth(self):
+        self.assertIn(self.client.get("/api/orders/").status_code, (401, 403))
+
+    def test_lists_only_users_paid_orders(self):
+        other = get_user_model().objects.create_user(
+            "other", "other@example.com", "Sup3rSecret!"
+        )
+        paid = Order.objects.create(user=self.user, status=Order.STATUS_PAID, total=40)
+        Order.objects.create(user=self.user, status=Order.STATUS_PENDING, total=10)
+        Order.objects.create(user=other, status=Order.STATUS_PAID, total=99)
+
+        self.client.force_authenticate(self.user)
+        res = self.client.get("/api/orders/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual([o["id"] for o in res.data], [paid.id])
