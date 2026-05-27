@@ -7,11 +7,13 @@ import Merch from "./components/Merch";
 import Footer from "./components/Footer";
 import AuthModal from "./components/AuthModal";
 import CartDrawer from "./components/CartDrawer";
+import CheckoutBanner from "./components/CheckoutBanner";
 
 export default function Storefront() {
   return (
     <StoreProvider>
       <div className="storefront" id="top">
+        <CheckoutBanner />
         <Header />
         <Gallery />
         <SpotifyEmbed />

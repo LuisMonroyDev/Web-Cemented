@@ -1,0 +1,35 @@
+.cobanner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 44px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.cobanner--success {
+  background: var(--red);
+  color: var(--bone);
+}
+.cobanner--cancel {
+  background: var(--surface-2);
+  color: var(--bone-dim);
+}
+.cobanner__msg {
+  margin: 0;
+}
+.cobanner__close {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
