@@ -46,6 +46,26 @@ class CartTests(TestCase):
         self.assertEqual(len(cart.data["items"]), 1)
         self.assertEqual(cart.data["items"][0]["quantity"], 2)
 
+    def test_cannot_add_out_of_stock(self):
+        self.client.force_authenticate(self.user)
+        sold_out = Product.objects.create(name="Gone", price=10, stock=0, is_active=True)
+        res = self.client.post(
+            "/api/cart/items/",
+            {"product_id": sold_out.id, "quantity": 1},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_quantity_capped_at_stock(self):
+        self.client.force_authenticate(self.user)  # self.product has stock 10
+        res = self.client.post(
+            "/api/cart/items/",
+            {"product_id": self.product.id, "quantity": 50},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data["items"][0]["quantity"], 10)
+
 
 @override_settings(STRIPE_SECRET_KEY="sk_test_dummy")
 class CheckoutTests(TestCase):
@@ -124,3 +144,5 @@ class WebhookTests(TestCase):
         self.assertEqual(order.status, Order.STATUS_PAID)
         self.assertEqual(order.stripe_payment_intent, "pi_123")
         self.assertEqual(CartItem.objects.filter(cart=cart).count(), 0)
+        product.refresh_from_db()
+        self.assertEqual(product.stock, 3)  # 5 - 2 sold
