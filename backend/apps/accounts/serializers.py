@@ -22,6 +22,15 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = User
         fields = ["id", "username", "email", "password"]
 
+    def validate_email(self, value):
+        # Django's User.email has no unique constraint, so enforce it here.
+        # Case-insensitive since order emails are normalized to lowercase.
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError(
+                "An account with this email already exists."
+            )
+        return value
+
     def create(self, validated_data):
         user = User(
             username=validated_data["username"],
