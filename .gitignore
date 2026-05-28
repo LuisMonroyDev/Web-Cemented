@@ -61,3 +61,8 @@ htmlcov/
 
 # --- Personal review logs (kept local, never committed) ---
 *(changes).md
+handoff/
+learn/
+
+# --- Local editor / preview tooling ---
+.claude/
