@@ -141,7 +141,9 @@ class CheckoutView(APIView):
         stripe.api_key = settings.STRIPE_SECRET_KEY
 
         order = Order.objects.create(
-            user=request.user, email=request.user.email, status=Order.STATUS_PENDING
+            user=request.user,
+            email=request.user.email.lower(),
+            status=Order.STATUS_PENDING,
         )
         line_items = []
         total = 0
