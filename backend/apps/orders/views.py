@@ -1,6 +1,7 @@
 """Cart endpoints (login-required) + Stripe checkout and webhook."""
 import stripe
 from django.conf import settings
+from django.db import transaction
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -202,19 +203,22 @@ def _field(obj, key, default=None):
 def _fulfill_checkout(session):
     metadata = _field(session, "metadata") or {}
     order_id = _field(metadata, "order_id") or _field(session, "client_reference_id")
-    order = Order.objects.filter(id=order_id).first()
-    if order is None:
-        return
-    order.status = Order.STATUS_PAID
-    order.stripe_payment_intent = _field(session, "payment_intent") or ""
-    order.save()
-    # Decrement inventory for what was purchased.
-    for line in order.items.all():
-        if line.product:
-            line.product.stock = max(0, line.product.stock - line.quantity)
-            line.product.save(update_fields=["stock"])
-    if order.user_id:  # empty the cart now that they've paid
-        CartItem.objects.filter(cart__user_id=order.user_id).delete()
+    # Stripe retries deliveries, so fulfilment must be idempotent. Lock the order
+    # row and bail if it's already paid — a duplicate delivery is then a no-op.
+    with transaction.atomic():
+        order = Order.objects.select_for_update().filter(id=order_id).first()
+        if order is None or order.status == Order.STATUS_PAID:
+            return
+        order.status = Order.STATUS_PAID
+        order.stripe_payment_intent = _field(session, "payment_intent") or ""
+        order.save()
+        # Decrement inventory for what was purchased.
+        for line in order.items.all():
+            if line.product:
+                line.product.stock = max(0, line.product.stock - line.quantity)
+                line.product.save(update_fields=["stock"])
+        if order.user_id:  # empty the cart now that they've paid
+            CartItem.objects.filter(cart__user_id=order.user_id).delete()
     send_order_emails(order)
 
 

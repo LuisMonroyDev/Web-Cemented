@@ -4,12 +4,7 @@ These drive full journeys through the real API + test DB, mocking only the
 external boundaries (Stripe + email). They guard the highest-risk paths:
 the full purchase flow, cart ownership, stock handling, checkout, and the
 Stripe webhook.
-
-Known gaps in current behavior are written as `@unittest.expectedFailure` so
-the suite stays green AND flips to a real failure (alerting us) the moment the
-underlying bug is fixed.
 """
-import unittest
 from unittest.mock import patch
 
 import stripe
@@ -409,11 +404,10 @@ class WebhookRobustnessTests(TestCase):
     DEFAULT_FROM_EMAIL="orders@cemented.band",
 )
 class WebhookIdempotencyTests(TestCase):
-    """Stripe retries deliveries; processing the same event twice must be a no-op.
+    """Stripe retries deliveries; processing the same event twice is a no-op.
 
-    KNOWN GAP: `_fulfill_checkout` is not idempotent — it re-decrements stock and
-    re-sends emails on every delivery. Tracked as a follow-up. These are marked
-    `expectedFailure` so they pass today and turn red once idempotency lands.
+    `_fulfill_checkout` locks the order row and bails if it's already paid, so a
+    duplicate delivery neither re-decrements stock nor re-sends emails.
     """
 
     def setUp(self):
@@ -435,7 +429,6 @@ class WebhookIdempotencyTests(TestCase):
         )
         return order
 
-    @unittest.expectedFailure
     def test_duplicate_delivery_decrements_stock_once(self):
         order = self._pending_order(qty=2)
         fire_webhook(self.client, order)
@@ -443,7 +436,6 @@ class WebhookIdempotencyTests(TestCase):
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock, 3)  # 5 - 2, not 5 - 4
 
-    @unittest.expectedFailure
     def test_duplicate_delivery_does_not_resend_emails(self):
         order = self._pending_order(qty=1)
         fire_webhook(self.client, order)
