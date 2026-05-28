@@ -11,6 +11,10 @@ class OrderItemInline(admin.TabularInline):
 
     @admin.display(description="Line total")
     def line_total(self, obj):
+        # The inline's blank "add another" template row is an unsaved OrderItem
+        # with no unit_price, so guard against computing None * quantity.
+        if obj.unit_price is None:
+            return "—"
         return obj.line_total
 
 
