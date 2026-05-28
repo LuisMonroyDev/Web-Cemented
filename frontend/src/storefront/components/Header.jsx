@@ -7,6 +7,33 @@ import { useStore } from "../storeContext";
 // the header falls back to the "Cemented" wordmark.
 const LOGO_SRC = logoSrc;
 
+// Slow, eased scroll so nav clicks "drag" the page rather than snap.
+let scrollFrame = null;
+function animateScrollTo(targetTop, duration = 900) {
+  if (scrollFrame) cancelAnimationFrame(scrollFrame); // a fresh click wins
+  const startTop = window.scrollY;
+  const distance = targetTop - startTop;
+  const startTime = performance.now();
+  function step(now) {
+    const t = Math.min((now - startTime) / duration, 1);
+    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
+    window.scrollTo(0, startTop + distance * eased);
+    scrollFrame = t < 1 ? requestAnimationFrame(step) : null;
+  }
+  scrollFrame = requestAnimationFrame(step);
+}
+
+function scrollToSection(event, id) {
+  event.preventDefault();
+  const target = document.getElementById(id);
+  if (!target) return;
+  // Land just above the section so the sticky header doesn't cover its title.
+  const header = document.querySelector(".hdr");
+  const offset = (header?.offsetHeight ?? 0) + 16;
+  const top = target.getBoundingClientRect().top + window.scrollY - offset;
+  animateScrollTo(top);
+}
+
 export default function Header() {
   const [logoOk, setLogoOk] = useState(true);
   const { user, count, openAuth, openCart, openAccount } = useStore();
@@ -34,8 +61,8 @@ export default function Header() {
       </div>
 
       <nav className="hdr__nav">
-        <a href="#music">Music</a>
-        <a href="#merch">Merch</a>
+        <a href="#music" onClick={(e) => scrollToSection(e, "music")}>Music</a>
+        <a href="#merch" onClick={(e) => scrollToSection(e, "merch")}>Merch</a>
         <button type="button" className="hdr__btn" onClick={openCart}>
           Cart ({count})
         </button>
