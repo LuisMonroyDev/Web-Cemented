@@ -119,3 +119,16 @@ CHECKOUT_SUCCESS_URL = os.environ.get(
 CHECKOUT_CANCEL_URL = os.environ.get(
     "CHECKOUT_CANCEL_URL", "http://localhost:5173/?checkout=cancel"
 )
+
+# --- Email ---
+# A Resend API key (EMAIL_API_KEY) enables real sending via django-anymail.
+# Without one, dev falls back to the console backend so the flow stays testable.
+EMAIL_API_KEY = os.environ.get("EMAIL_API_KEY", "")
+BAND_NOTIFICATION_EMAIL = os.environ.get("BAND_NOTIFICATION_EMAIL", "")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "Cemented <orders@cemented.band>")
+
+if EMAIL_API_KEY:
+    EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
+    ANYMAIL = {"RESEND_API_KEY": EMAIL_API_KEY}
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

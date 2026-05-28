@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 
 from apps.store.models import Product
 
+from .emails import send_order_emails
 from .models import Cart, CartItem, Order, OrderItem
 from .serializers import CartSerializer, OrderSerializer
 
@@ -212,6 +213,7 @@ def _fulfill_checkout(session):
             line.product.save(update_fields=["stock"])
     if order.user_id:  # empty the cart now that they've paid
         CartItem.objects.filter(cart__user_id=order.user_id).delete()
+    send_order_emails(order)
 
 
 @csrf_exempt
