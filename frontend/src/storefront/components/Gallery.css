@@ -34,9 +34,55 @@
   text-transform: uppercase;
 }
 
+/* Slim read-only scroll indicator, tucked into the bottom-right below the
+   strip. Hovering it triggers the same nudge as scrolling the gallery into
+   view. Stays subtle until interacted with. */
+.gallery__scrollbar {
+  width: 160px;
+  height: 18px; /* generous, invisible hover target around a 2px line */
+  margin: 14px 24px 18px auto; /* margin-left:auto pins it to the right edge */
+  display: flex;
+  align-items: center;
+  cursor: default;
+  /* hidden until the cursor enters the gallery strip */
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+}
+.gallery:hover .gallery__scrollbar {
+  opacity: 1;
+  pointer-events: auto;
+}
+.gallery__rail {
+  position: relative;
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background 0.25s ease;
+}
+.gallery__thumb {
+  position: absolute;
+  top: 50%;
+  height: 2px;
+  min-width: 22px;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.45);
+  transition: background 0.25s ease;
+}
+.gallery__scrollbar:hover .gallery__rail {
+  background: rgba(255, 255, 255, 0.2);
+}
+.gallery__scrollbar:hover .gallery__thumb {
+  background: var(--bone);
+}
+
 @media (max-width: 700px) {
   .gallery__item {
     flex-basis: 82vw;
     height: 64vh;
+  }
+  .gallery__scrollbar {
+    width: 120px;
+    margin-right: 16px;
   }
 }
