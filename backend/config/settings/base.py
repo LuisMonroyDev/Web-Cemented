@@ -101,10 +101,12 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Uploaded media — product images land here during development.
+# Uploaded media — product images. Defaults to a local folder for development;
+# in production DJANGO_MEDIA_ROOT points at a persistent disk (a DigitalOcean
+# Volume mount) so images survive droplet rebuilds.
 # See docs/plan/01-architecture.md, "Media / image storage".
 MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = os.environ.get("DJANGO_MEDIA_ROOT") or (BASE_DIR / "media")
 
 # --- Stripe ---
 # Secrets come from the environment; the secret key never reaches the frontend.
