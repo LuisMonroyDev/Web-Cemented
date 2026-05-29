@@ -1,10 +1,4 @@
-"""Regression tests for the auth lifecycle and registration validation.
-
-Known gaps in current behavior use `@unittest.expectedFailure` so the suite
-stays green and flips red the moment the underlying rule is enforced.
-"""
-import unittest
-
+"""Regression tests for the auth lifecycle and registration validation."""
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -37,13 +31,11 @@ class RegistrationValidationTests(TestCase):
         )
         self.assertEqual(res.status_code, 400)
 
-    @unittest.expectedFailure
     def test_duplicate_email_rejected(self):
         """Two accounts shouldn't share an email address.
 
-        KNOWN GAP: email uniqueness isn't enforced — Django's `User.email` has
-        no unique constraint and `RegisterSerializer` doesn't check. Tracked as
-        a follow-up; expectedFailure until enforced.
+        `RegisterSerializer.validate_email` enforces case-insensitive
+        uniqueness since Django's `User.email` has no unique constraint.
         """
         get_user_model().objects.create_user("fan", "dupe@example.com", "Sup3rSecret!")
         res = self.client.post(
