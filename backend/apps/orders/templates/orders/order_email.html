@@ -32,9 +32,15 @@
                   <td style="padding:12px 0; border-bottom:1px solid #2a2a2a; font-size:15px; color:#e7e2d6; text-align:right; white-space:nowrap;">${{ item.line_total }}</td>
                 </tr>
                 {% endfor %}
+                {% if order.shipping_cost %}
                 <tr>
-                  <td style="padding:18px 0 0 0; font-size:16px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#e7e2d6;">Total</td>
-                  <td style="padding:18px 0 0 0; font-size:16px; font-weight:700; color:#c0241f; text-align:right; white-space:nowrap;">${{ order.total }}</td>
+                  <td style="padding:14px 0 0 0; font-size:14px; color:#9a958c;">Shipping</td>
+                  <td style="padding:14px 0 0 0; font-size:14px; color:#9a958c; text-align:right; white-space:nowrap;">${{ order.shipping_cost }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                  <td style="padding:14px 0 0 0; font-size:16px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#e7e2d6;">Total</td>
+                  <td style="padding:14px 0 0 0; font-size:16px; font-weight:700; color:#c0241f; text-align:right; white-space:nowrap;">${{ order.total }}</td>
                 </tr>
               </table>
 
@@ -43,6 +49,16 @@
               <div style="font-size:15px; line-height:1.6; color:#e7e2d6;">
                 {% for line in shipping_lines %}{{ line }}<br>{% endfor %}
               </div>
+              {% endif %}
+
+              {% if track_url %}
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 0 0;">
+                <tr>
+                  <td style="background-color:#a81d1d;">
+                    <a href="{{ track_url }}" style="display:inline-block; padding:13px 26px; font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#ffffff; text-decoration:none;">{{ track_label|default:"Track your package" }}</a>
+                  </td>
+                </tr>
+              </table>
               {% endif %}
             </td>
           </tr>

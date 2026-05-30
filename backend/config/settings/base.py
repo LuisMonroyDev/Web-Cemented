@@ -7,6 +7,7 @@ See docs/plan/03-conventions.md for why the settings are split this way.
 """
 
 import os
+from decimal import Decimal
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -121,6 +122,13 @@ CHECKOUT_SUCCESS_URL = os.environ.get(
 CHECKOUT_CANCEL_URL = os.environ.get(
     "CHECKOUT_CANCEL_URL", "http://localhost:5173/?checkout=cancel"
 )
+
+# --- Shipping ---
+# A single flat shipping fee (in dollars) added at checkout. The merch is all
+# light (shirts, stickers, CDs), so one rate keeps it simple instead of
+# weighing packages. We ship to the US only for now.
+SHIPPING_FLAT_RATE = Decimal(os.environ.get("SHIPPING_FLAT_RATE", "5.00"))
+SHIPPING_ALLOWED_COUNTRIES = ["US"]
 
 # --- Email ---
 # A Resend API key (EMAIL_API_KEY) enables real sending via django-anymail.

@@ -32,19 +32,21 @@ def _cart_response(cart, request, status_code=status.HTTP_200_OK):
 # Cart
 # --------------------------------------------------------------------------- #
 class OrderListView(generics.ListAPIView):
-    """The current customer's orders (paid + canceled), newest first.
+    """The current customer's real orders, newest first.
 
-    Pending orders are abandoned/in-flight checkouts, so they're hidden; a
-    canceled order stays visible so the customer can see it was refunded.
+    Only pending orders are hidden — those are abandoned/in-flight checkouts
+    that were never paid. Everything else stays visible the whole way through
+    fulfilment (paid → fulfilling → shipped → delivered) and after a refund
+    (canceled), so the customer can always track an in-progress order and see
+    that a canceled one was refunded.
     """
 
     serializer_class = OrderSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Order.objects.filter(
-            user=self.request.user,
-            status__in=[Order.STATUS_PAID, Order.STATUS_CANCELED],
+        return Order.objects.filter(user=self.request.user).exclude(
+            status=Order.STATUS_PENDING
         )
 
 
@@ -232,7 +234,11 @@ class CheckoutView(APIView):
                 unit_price=unit_price,
                 quantity=item.quantity,
             )
-        order.total = total
+        # Flat shipping fee, folded into the order total so our records match
+        # exactly what Stripe charges (items + shipping).
+        shipping = settings.SHIPPING_FLAT_RATE
+        order.shipping_cost = shipping
+        order.total = total + shipping
         order.save()
 
         session = stripe.checkout.Session.create(
@@ -244,8 +250,24 @@ class CheckoutView(APIView):
             customer_email=request.user.email or None,
             metadata={"order_id": str(order.id)},
             # Let Stripe collect + validate the shipping address on its own
-            # checkout page. Expand the list to ship to more countries.
-            shipping_address_collection={"allowed_countries": ["US", "CA"]},
+            # checkout page. We ship to the US only for now.
+            shipping_address_collection={
+                "allowed_countries": settings.SHIPPING_ALLOWED_COUNTRIES
+            },
+            # Charge the flat shipping fee as a Stripe shipping option so it
+            # shows as its own line on the hosted checkout page.
+            shipping_options=[
+                {
+                    "shipping_rate_data": {
+                        "type": "fixed_amount",
+                        "fixed_amount": {
+                            "amount": int(shipping * 100),  # cents
+                            "currency": "usd",
+                        },
+                        "display_name": "Standard shipping",
+                    },
+                }
+            ],
         )
         order.stripe_session_id = session.id
         order.save(update_fields=["stripe_session_id"])

@@ -290,8 +290,11 @@ class CheckoutEdgeTests(TestCase):
         self._add(3)
         self.client.post("/api/checkout/")
         order = Order.objects.get()
-        self.assertEqual(str(order.total), "60.00")  # 20 * 3, from the DB
+        # Items come straight from the DB (3 × $20 = $60); checkout adds the
+        # flat $5 shipping fee on top, so the charged total is $65.
         self.assertEqual(str(order.items.get().unit_price), "20.00")
+        self.assertEqual(str(order.shipping_cost), "5.00")
+        self.assertEqual(str(order.total), "65.00")
 
     @patch("apps.orders.views.stripe.checkout.Session.create")
     def test_order_email_normalized_to_lowercase(self, mock_session):

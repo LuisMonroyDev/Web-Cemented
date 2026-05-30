@@ -2,6 +2,7 @@ import stripe
 from django.conf import settings
 from django.contrib import admin, messages
 
+from .emails import send_delivered_email, send_shipped_email
 from .models import Order, OrderItem
 from .services import cancel_and_refund
 
@@ -37,6 +38,7 @@ class OrderAdmin(admin.ModelAdmin):
         "user",
         "email",
         "total",
+        "shipping_cost",
         "stripe_session_id",
         "stripe_payment_intent",
         "shipping_address",
@@ -47,7 +49,10 @@ class OrderAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {"fields": ("status", "tracking_number")}),
         ("Customer", {"fields": ("user", "email", "shipping_address")}),
-        ("Payment", {"fields": ("total", "stripe_session_id", "stripe_payment_intent")}),
+        (
+            "Payment",
+            {"fields": ("total", "shipping_cost", "stripe_session_id", "stripe_payment_intent")},
+        ),
         ("Cancellation", {"fields": ("cancel_reason",)}),
         ("Timestamps", {"fields": ("created_at", "updated_at")}),
     )
@@ -92,6 +97,11 @@ class OrderAdmin(admin.ModelAdmin):
         # refund the customer (and restock + email), not just flip the label.
         # Route that through the shared service instead of a plain save.
         if change and "status" in form.changed_data and obj.status == Order.STATUS_CANCELED:
+            # Each branch below posts its own precise message and may leave the
+            # order unsaved (blocked or refund-failed). Flag the request so
+            # response_change skips Django's default "was changed successfully"
+            # — redundant on success, and outright wrong when we blocked it.
+            request._cancellation_handled = True
             if not settings.STRIPE_SECRET_KEY:
                 self.message_user(
                     request, "Stripe isn't configured — can't refund.", messages.ERROR
@@ -119,6 +129,29 @@ class OrderAdmin(admin.ModelAdmin):
                 )
             return
         super().save_model(request, obj, form, change)
+        # Notify the customer when the order transitions to shipped, including
+        # the tracking number/link the band just entered on the same form.
+        if change and "status" in form.changed_data and obj.status == Order.STATUS_SHIPPED:
+            send_shipped_email(obj)
+            self.message_user(
+                request, f"Order #{obj.pk} marked shipped — customer notified."
+            )
+        # Likewise, confirm delivery with a thank-you when it transitions to
+        # delivered (the email reuses the captured address + tracking link).
+        if change and "status" in form.changed_data and obj.status == Order.STATUS_DELIVERED:
+            send_delivered_email(obj)
+            self.message_user(
+                request, f"Order #{obj.pk} marked delivered — customer notified."
+            )
+
+    def response_change(self, request, obj):
+        # When save_model handled a cancellation it already posted a precise
+        # message — and on a blocked/failed cancel it never saved the order.
+        # Skip Django's default success message (a lie in that case) and just
+        # run the normal post-save redirect back to the changelist.
+        if getattr(request, "_cancellation_handled", False):
+            return self.response_post_save_change(request, obj)
+        return super().response_change(request, obj)
 
     @admin.action(description="Mark selected orders as fulfilling")
     def mark_fulfilling(self, request, queryset):
@@ -127,13 +160,29 @@ class OrderAdmin(admin.ModelAdmin):
 
     @admin.action(description="Mark selected orders as shipped")
     def mark_shipped(self, request, queryset):
-        updated = queryset.update(status=Order.STATUS_SHIPPED)
-        self.message_user(request, f"{updated} order(s) marked shipped.")
+        # Iterate (not bulk update) so each order saves through the model and
+        # gets a shipped email with its tracking number/link. Skip orders that
+        # are already shipped so we don't re-notify the customer.
+        sent = 0
+        for order in queryset.exclude(status=Order.STATUS_SHIPPED):
+            order.status = Order.STATUS_SHIPPED
+            order.save(update_fields=["status", "updated_at"])
+            send_shipped_email(order)
+            sent += 1
+        self.message_user(request, f"{sent} order(s) marked shipped and emailed.")
 
     @admin.action(description="Mark selected orders as delivered")
     def mark_delivered(self, request, queryset):
-        updated = queryset.update(status=Order.STATUS_DELIVERED)
-        self.message_user(request, f"{updated} order(s) marked delivered.")
+        # Iterate (not bulk update) so each order saves through the model and
+        # gets a delivery confirmation + thank-you email. Skip orders already
+        # delivered so we don't re-notify the customer.
+        sent = 0
+        for order in queryset.exclude(status=Order.STATUS_DELIVERED):
+            order.status = Order.STATUS_DELIVERED
+            order.save(update_fields=["status", "updated_at"])
+            send_delivered_email(order)
+            sent += 1
+        self.message_user(request, f"{sent} order(s) marked delivered and emailed.")
 
     @admin.action(description="Cancel & refund selected orders")
     def cancel_and_refund_orders(self, request, queryset):

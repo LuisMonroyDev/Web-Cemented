@@ -76,7 +76,11 @@ class Order(models.Model):
     )
     email = models.EmailField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    # `total` is the full charged amount (items + shipping); `shipping_cost` is
+    # broken out so it can be shown as its own line and so `total` stays
+    # explainable (the items always add up to total minus shipping).
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    shipping_cost = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     stripe_session_id = models.CharField(max_length=255, blank=True)
     stripe_payment_intent = models.CharField(max_length=255, blank=True)
 
@@ -112,6 +116,17 @@ class Order(models.Model):
         if self.email:
             self.email = self.email.strip().lower()
         super().save(*args, **kwargs)
+
+    @staticmethod
+    def usps_tracking_url(tracking_number):
+        """Public USPS tracking page for a tracking number, or None if unset.
+
+        The number is entered by hand in the admin; this just wraps it in the
+        USPS tracking URL so the API and emails can link/QR to it consistently.
+        """
+        if not tracking_number:
+            return None
+        return f"https://tools.usps.com/go/TrackConfirmAction?tLabels={tracking_number}"
 
     @property
     def has_shipping_address(self):

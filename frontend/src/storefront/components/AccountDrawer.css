@@ -126,6 +126,13 @@
   justify-content: space-between;
   font-size: 13px;
 }
+.order__subline {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--bone-dim);
+  margin-bottom: 6px;
+}
 .order__total {
   display: flex;
   justify-content: space-between;
@@ -296,6 +303,50 @@
   font-size: 13px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--bone);
+}
+.order__track {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+.order__tracklink {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--red-bright);
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 1px;
+}
+.order__tracklink:hover {
+  color: var(--bone);
+}
+/* The QR rides on a small floating white tile. It needs a light background
+   and a quiet-zone margin to scan reliably on the dark UI, so we present that
+   as an intentional rounded, shadowed card — cropped tight to the code —
+   rather than a bare white block. */
+.order__qr {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  align-self: flex-start;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+}
+.order__qr svg {
+  display: block;
+  border-radius: 4px;
+}
+.order__qrhint {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #555;
 }
 
 /* Cancel reason form. */
