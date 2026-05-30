@@ -72,3 +72,5 @@ export const checkout = () => request("/api/checkout/", { method: "POST" });
 
 // --- orders ---
 export const fetchOrders = () => request("/api/orders/");
+export const cancelOrder = (orderId, reason) =>
+  request(`/api/orders/${orderId}/cancel/`, { method: "POST", body: { reason } });

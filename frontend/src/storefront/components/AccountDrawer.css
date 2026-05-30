@@ -135,3 +135,220 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+/* Condensed, clickable order row in the list view. */
+.order--row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  color: var(--bone);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.order--row:hover {
+  border-color: var(--bone-dim);
+}
+.order__rowmeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.order__rowtotal {
+  font-weight: 800;
+}
+
+/* Status badge — shared by list rows and the detail view. */
+.order__status {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.order__status--paid,
+.order__status--pending,
+.order__status--delivered {
+  color: var(--bone-dim);
+}
+.order__status--fulfilling,
+.order__status--shipped {
+  color: var(--bone);
+}
+.order__status--canceled {
+  color: var(--red-bright);
+}
+/* Give the badge breathing room above the item list in the detail view. */
+.order .order__status {
+  margin-bottom: 10px;
+}
+
+.order__cancel {
+  padding: 11px 12px;
+  background: transparent;
+  color: var(--bone);
+  border: 2px solid var(--bone);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.order__cancel:hover {
+  border-color: var(--red);
+  color: var(--red-bright);
+}
+.order__cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: var(--hairline);
+  color: var(--bone-dim);
+}
+
+/* Fulfilment progress stepper (Paid → Fulfilling → Shipped → Delivered). */
+.stepper {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+}
+/* The connecting line behind the dots. */
+.stepper::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 5%;
+  right: 5%;
+  height: 1px;
+  background: var(--hairline);
+}
+.stepper__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  z-index: 1;
+}
+.stepper__dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  transition: background 0.2s, border-color 0.2s;
+}
+.stepper__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+.stepper__step--done .stepper__dot {
+  background: var(--bone-dim);
+  border-color: var(--bone-dim);
+}
+.stepper__step--active .stepper__dot {
+  background: var(--red);
+  border-color: var(--red);
+}
+.stepper__step--active .stepper__label {
+  color: var(--bone);
+}
+
+.order__canceled {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Shipping address / tracking blocks. */
+.order__block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.order__blocktitle {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+.order__address {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-style: normal;
+  font-size: 13px;
+  color: var(--bone);
+}
+.order__tracking {
+  margin: 0;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--bone);
+}
+
+/* Cancel reason form. */
+.order__cancelform {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.order__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.order__select,
+.order__notes {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  color: var(--bone);
+  font: inherit;
+  font-size: 13px;
+  padding: 9px 10px;
+}
+.order__notes {
+  resize: vertical;
+}
+.order__select:focus,
+.order__notes:focus {
+  outline: none;
+  border-color: var(--bone-dim);
+}
+.order__cancelactions {
+  display: flex;
+  gap: 10px;
+}
+.order__cancelactions .order__cancel {
+  flex: 1;
+}
+.order__keep {
+  flex: 1;
+  padding: 11px 12px;
+  background: transparent;
+  color: var(--bone-dim);
+  border: 2px solid var(--hairline);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.order__keep:hover {
+  color: var(--bone);
+  border-color: var(--bone-dim);
+}

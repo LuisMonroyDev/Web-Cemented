@@ -14,6 +14,7 @@ from apps.store.models import Product
 from .emails import send_order_emails
 from .models import Cart, CartItem, Order, OrderItem
 from .serializers import CartSerializer, OrderSerializer
+from .services import cancel_and_refund
 
 
 def _get_cart(user):
@@ -31,15 +32,78 @@ def _cart_response(cart, request, status_code=status.HTTP_200_OK):
 # Cart
 # --------------------------------------------------------------------------- #
 class OrderListView(generics.ListAPIView):
-    """The current customer's paid orders, newest first."""
+    """The current customer's orders (paid + canceled), newest first.
+
+    Pending orders are abandoned/in-flight checkouts, so they're hidden; a
+    canceled order stays visible so the customer can see it was refunded.
+    """
 
     serializer_class = OrderSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return Order.objects.filter(
-            user=self.request.user, status=Order.STATUS_PAID
+            user=self.request.user,
+            status__in=[Order.STATUS_PAID, Order.STATUS_CANCELED],
         )
+
+
+class OrderCancelView(APIView):
+    """Cancel a paid order and refund it through Stripe.
+
+    Refunds we initiate return their result synchronously, so unlike the
+    payment flow (which trusts the webhook) we can refund and update the order
+    in one request. The row is locked and the status re-checked so a
+    double-submit can never issue a second refund.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, order_id):
+        if not settings.STRIPE_SECRET_KEY:
+            return Response(
+                {"detail": "Payments are not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        # A reason is required — the friction discourages frivolous refunds.
+        reason = (request.data.get("reason") or "").strip()
+        if not reason:
+            return Response(
+                {"detail": "Please tell us why you're canceling."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Friendly pre-checks for nice error messages; the service re-checks
+        # under a row lock, which is the authoritative guard against races.
+        order = Order.objects.filter(id=order_id, user=request.user).first()
+        if order is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if order.status not in Order.CANCELABLE_STATUSES:
+            return Response(
+                {"detail": "This order can no longer be canceled."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not order.stripe_payment_intent:
+            return Response(
+                {"detail": "This order has no payment to refund."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            canceled = cancel_and_refund(order, reason)
+        except stripe.error.StripeError:
+            return Response(
+                {"detail": "Refund could not be processed. Please try again."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        if not canceled:  # lost a race — someone canceled it first
+            return Response(
+                {"detail": "This order can no longer be canceled."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order.refresh_from_db()
+        return Response(OrderSerializer(order, context={"request": request}).data)
 
 
 class CartView(APIView):
@@ -179,6 +243,9 @@ class CheckoutView(APIView):
             client_reference_id=str(order.id),
             customer_email=request.user.email or None,
             metadata={"order_id": str(order.id)},
+            # Let Stripe collect + validate the shipping address on its own
+            # checkout page. Expand the list to ship to more countries.
+            shipping_address_collection={"allowed_countries": ["US", "CA"]},
         )
         order.stripe_session_id = session.id
         order.save(update_fields=["stripe_session_id"])
@@ -200,6 +267,32 @@ def _field(obj, key, default=None):
         return default
 
 
+def _shipping(session):
+    """Pull the shipping name + address Stripe collected at checkout.
+
+    Stripe moved this field across API versions: newer versions nest it under
+    ``collected_information.shipping_details`` while older ones expose
+    ``shipping_details`` directly on the session. Read both so we work
+    regardless of the account's API version.
+    """
+    collected = _field(session, "collected_information") or {}
+    details = (
+        _field(collected, "shipping_details")
+        or _field(session, "shipping_details")
+        or {}
+    )
+    address = _field(details, "address") or {}
+    return {
+        "name": _field(details, "name") or "",
+        "line1": _field(address, "line1") or "",
+        "line2": _field(address, "line2") or "",
+        "city": _field(address, "city") or "",
+        "state": _field(address, "state") or "",
+        "postal_code": _field(address, "postal_code") or "",
+        "country": _field(address, "country") or "",
+    }
+
+
 def _fulfill_checkout(session):
     metadata = _field(session, "metadata") or {}
     order_id = _field(metadata, "order_id") or _field(session, "client_reference_id")
@@ -211,6 +304,14 @@ def _fulfill_checkout(session):
             return
         order.status = Order.STATUS_PAID
         order.stripe_payment_intent = _field(session, "payment_intent") or ""
+        ship = _shipping(session)
+        order.shipping_name = ship["name"]
+        order.shipping_line1 = ship["line1"]
+        order.shipping_line2 = ship["line2"]
+        order.shipping_city = ship["city"]
+        order.shipping_state = ship["state"]
+        order.shipping_postal_code = ship["postal_code"]
+        order.shipping_country = ship["country"]
         order.save()
         # Decrement inventory for what was purchased.
         for line in order.items.all():

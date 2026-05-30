@@ -37,6 +37,13 @@
                   <td style="padding:18px 0 0 0; font-size:16px; font-weight:700; color:#c0241f; text-align:right; white-space:nowrap;">${{ order.total }}</td>
                 </tr>
               </table>
+
+              {% if shipping_lines %}
+              <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.1em; color:#9a958c; margin:28px 0 8px 0;">Shipping to</div>
+              <div style="font-size:15px; line-height:1.6; color:#e7e2d6;">
+                {% for line in shipping_lines %}{{ line }}<br>{% endfor %}
+              </div>
+              {% endif %}
             </td>
           </tr>
 
