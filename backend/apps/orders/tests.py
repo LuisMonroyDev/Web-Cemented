@@ -9,6 +9,7 @@ from rest_framework.test import APIClient
 from apps.store.models import Product
 
 from .models import Cart, CartItem, Order, OrderItem
+from .services import cancel_and_refund
 
 
 class CartTests(TestCase):
@@ -107,8 +108,10 @@ class CheckoutTests(TestCase):
         self.assertEqual(order.items.count(), 1)
         self.assertEqual(order.stripe_session_id, "cs_test_123")
         # Stripe was asked to charge 2000 cents/unit, qty 2.
-        line_items = mock_create.call_args.kwargs["line_items"]
-        self.assertEqual(line_items[0]["price_data"]["unit_amount"], 2000)
+        kwargs = mock_create.call_args.kwargs
+        self.assertEqual(kwargs["line_items"][0]["price_data"]["unit_amount"], 2000)
+        # ...and to collect a shipping address on its checkout page.
+        self.assertIn("US", kwargs["shipping_address_collection"]["allowed_countries"])
 
 
 @override_settings(STRIPE_WEBHOOK_SECRET="whsec_dummy")
@@ -134,6 +137,17 @@ class WebhookTests(TestCase):
                 "metadata": {"order_id": str(order.id)},
                 "payment_intent": "pi_123",
                 "client_reference_id": str(order.id),
+                "shipping_details": {
+                    "name": "Jane Fan",
+                    "address": {
+                        "line1": "123 Riff St",
+                        "line2": "Apt 4",
+                        "city": "Austin",
+                        "state": "TX",
+                        "postal_code": "78701",
+                        "country": "US",
+                    },
+                },
             },
             "sk_test_dummy",
         )
@@ -154,6 +168,12 @@ class WebhookTests(TestCase):
         self.assertEqual(CartItem.objects.filter(cart=cart).count(), 0)
         product.refresh_from_db()
         self.assertEqual(product.stock, 3)  # 5 - 2 sold
+        # The shipping address Stripe collected is snapshotted onto the order.
+        self.assertEqual(order.shipping_name, "Jane Fan")
+        self.assertEqual(order.shipping_line1, "123 Riff St")
+        self.assertEqual(order.shipping_city, "Austin")
+        self.assertEqual(order.shipping_postal_code, "78701")
+        self.assertTrue(order.has_shipping_address)
 
 
 class OrdersApiTests(TestCase):
@@ -166,18 +186,189 @@ class OrdersApiTests(TestCase):
     def test_orders_require_auth(self):
         self.assertIn(self.client.get("/api/orders/").status_code, (401, 403))
 
-    def test_lists_only_users_paid_orders(self):
+    def test_lists_users_paid_and_canceled_orders(self):
         other = get_user_model().objects.create_user(
             "other", "other@example.com", "Sup3rSecret!"
         )
         paid = Order.objects.create(user=self.user, status=Order.STATUS_PAID, total=40)
+        canceled = Order.objects.create(
+            user=self.user, status=Order.STATUS_CANCELED, total=15
+        )
         Order.objects.create(user=self.user, status=Order.STATUS_PENDING, total=10)
         Order.objects.create(user=other, status=Order.STATUS_PAID, total=99)
 
         self.client.force_authenticate(self.user)
         res = self.client.get("/api/orders/")
         self.assertEqual(res.status_code, 200)
-        self.assertEqual([o["id"] for o in res.data], [paid.id])
+        # Paid + canceled (newest first), but not pending and not other users'.
+        self.assertEqual({o["id"] for o in res.data}, {paid.id, canceled.id})
+
+    def test_can_cancel_flag_reflects_status(self):
+        paid = Order.objects.create(user=self.user, status=Order.STATUS_PAID, total=40)
+        canceled = Order.objects.create(
+            user=self.user, status=Order.STATUS_CANCELED, total=15
+        )
+        self.client.force_authenticate(self.user)
+        res = self.client.get("/api/orders/")
+        flags = {o["id"]: o["can_cancel"] for o in res.data}
+        self.assertTrue(flags[paid.id])
+        self.assertFalse(flags[canceled.id])
+
+
+@override_settings(STRIPE_SECRET_KEY="sk_test_dummy")
+class OrderCancelTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = get_user_model().objects.create_user(
+            "fan", "fan@example.com", "Sup3rSecret!"
+        )
+        self.product = Product.objects.create(
+            name="Tour Tee", price=20, stock=3, is_active=True
+        )
+        self.order = Order.objects.create(
+            user=self.user,
+            status=Order.STATUS_PAID,
+            total=40,
+            stripe_payment_intent="pi_123",
+        )
+        OrderItem.objects.create(
+            order=self.order,
+            product=self.product,
+            name="Tour Tee",
+            unit_price=20,
+            quantity=2,
+        )
+
+    def _cancel(self, order_id, reason="Changed my mind"):
+        return self.client.post(
+            f"/api/orders/{order_id}/cancel/", {"reason": reason}, format="json"
+        )
+
+    def test_cancel_requires_auth(self):
+        res = self.client.post(f"/api/orders/{self.order.id}/cancel/")
+        self.assertIn(res.status_code, (401, 403))
+
+    @patch("apps.orders.services.stripe.Refund.create")
+    def test_cancel_refunds_restocks_and_stores_reason(self, mock_refund):
+        self.client.force_authenticate(self.user)
+        res = self._cancel(self.order.id, reason="Ordered the wrong size")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["status"], Order.STATUS_CANCELED)
+        self.assertFalse(res.data["can_cancel"])
+        mock_refund.assert_called_once_with(payment_intent="pi_123")
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.STATUS_CANCELED)
+        self.assertEqual(self.order.cancel_reason, "Ordered the wrong size")
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 5)  # 3 + 2 returned
+
+    @patch("apps.orders.services.stripe.Refund.create")
+    def test_cancel_requires_a_reason(self, mock_refund):
+        self.client.force_authenticate(self.user)
+        res = self.client.post(f"/api/orders/{self.order.id}/cancel/", {}, format="json")
+        self.assertEqual(res.status_code, 400)
+        mock_refund.assert_not_called()
+
+    @patch("apps.orders.services.stripe.Refund.create")
+    def test_fulfilling_order_can_still_cancel(self, mock_refund):
+        self.order.status = Order.STATUS_FULFILLING
+        self.order.save(update_fields=["status"])
+        self.client.force_authenticate(self.user)
+        res = self._cancel(self.order.id)
+        self.assertEqual(res.status_code, 200)
+        mock_refund.assert_called_once()
+
+    @patch("apps.orders.services.stripe.Refund.create")
+    def test_shipped_order_cannot_cancel(self, mock_refund):
+        self.order.status = Order.STATUS_SHIPPED
+        self.order.save(update_fields=["status"])
+        self.client.force_authenticate(self.user)
+        res = self._cancel(self.order.id)
+        self.assertEqual(res.status_code, 400)
+        mock_refund.assert_not_called()
+
+    @patch("apps.orders.services.stripe.Refund.create")
+    def test_cannot_cancel_someone_elses_order(self, mock_refund):
+        other = get_user_model().objects.create_user(
+            "other", "other@example.com", "Sup3rSecret!"
+        )
+        self.client.force_authenticate(other)
+        res = self._cancel(self.order.id)
+        self.assertEqual(res.status_code, 404)
+        mock_refund.assert_not_called()
+
+    @patch("apps.orders.services.stripe.Refund.create")
+    def test_cannot_cancel_twice(self, mock_refund):
+        self.order.status = Order.STATUS_CANCELED
+        self.order.save(update_fields=["status"])
+        self.client.force_authenticate(self.user)
+        res = self._cancel(self.order.id)
+        self.assertEqual(res.status_code, 400)
+        mock_refund.assert_not_called()
+
+
+@override_settings(
+    STRIPE_SECRET_KEY="sk_test_dummy",
+    BAND_NOTIFICATION_EMAIL="band@cemented.band",
+    DEFAULT_FROM_EMAIL="orders@cemented.band",
+)
+class CancelServiceTests(TestCase):
+    """The shared cancel/refund service used by both the API and the admin."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            "fan", "fan@example.com", "Sup3rSecret!"
+        )
+        self.product = Product.objects.create(
+            name="Tour Tee", price=20, stock=3, is_active=True
+        )
+        self.order = Order.objects.create(
+            user=self.user,
+            email="fan@example.com",
+            status=Order.STATUS_PAID,
+            total=40,
+            stripe_payment_intent="pi_123",
+        )
+        OrderItem.objects.create(
+            order=self.order,
+            product=self.product,
+            name="Tour Tee",
+            unit_price=20,
+            quantity=2,
+        )
+
+    @patch("apps.orders.services.stripe.Refund.create")
+    def test_refunds_restocks_emails_and_cancels(self, mock_refund):
+        self.assertTrue(cancel_and_refund(self.order, reason="Defective print"))
+        mock_refund.assert_called_once_with(payment_intent="pi_123")
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.STATUS_CANCELED)
+        self.assertEqual(self.order.cancel_reason, "Defective print")
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 5)  # 3 + 2 returned
+        # Customer confirmation + band notice.
+        self.assertEqual(len(mail.outbox), 2)
+        recipients = {addr for m in mail.outbox for addr in m.to}
+        self.assertIn("fan@example.com", recipients)
+        self.assertIn("band@cemented.band", recipients)
+
+    @patch("apps.orders.services.stripe.Refund.create")
+    def test_is_idempotent(self, mock_refund):
+        self.assertTrue(cancel_and_refund(self.order, reason="One"))
+        # A second call must not refund again or restock twice.
+        self.assertFalse(cancel_and_refund(self.order, reason="Two"))
+        mock_refund.assert_called_once()
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 5)
+
+    @patch("apps.orders.services.stripe.Refund.create")
+    def test_noop_once_shipped(self, mock_refund):
+        self.order.status = Order.STATUS_SHIPPED
+        self.order.save(update_fields=["status"])
+        self.assertFalse(cancel_and_refund(self.order, reason="Too late"))
+        mock_refund.assert_not_called()
 
 
 @override_settings(
@@ -203,3 +394,19 @@ class OrderEmailTests(TestCase):
         recipients = {addr for message in mail.outbox for addr in message.to}
         self.assertIn("fan@example.com", recipients)
         self.assertIn("band@cemented.band", recipients)
+
+
+class OrderEmailNormalizationTests(TestCase):
+    """order.email is stored canonically (trimmed + lowercased). A stray
+    capital had made a customer email silently fail in Resend's test mode,
+    which compares the recipient case-sensitively against the account address."""
+
+    def test_email_is_lowercased_and_trimmed_on_save(self):
+        order = Order.objects.create(email="  Fan.Name@Example.COM ", total=10)
+        order.refresh_from_db()
+        self.assertEqual(order.email, "fan.name@example.com")
+
+    def test_blank_email_stays_blank(self):
+        order = Order.objects.create(email="", total=10)
+        order.refresh_from_db()
+        self.assertEqual(order.email, "")
