@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     # Third-party
     "rest_framework",
     "corsheaders",
+    "anymail",
     # Project apps
     "apps.core",
     "apps.store",
