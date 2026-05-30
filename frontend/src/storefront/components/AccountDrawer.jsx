@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import "./AccountDrawer.css";
 import { useStore } from "../storeContext";
 import { fetchOrders, cancelOrder } from "../../lib/api";
@@ -222,6 +223,12 @@ export default function AccountDrawer() {
                   </li>
                 ))}
               </ul>
+              {Number(selected.shipping_cost) > 0 && (
+                <div className="order__subline">
+                  <span>Shipping</span>
+                  <span>${selected.shipping_cost}</span>
+                </div>
+              )}
               <div className="order__total">
                 <span>Total</span>
                 <span>${selected.total}</span>
@@ -243,6 +250,29 @@ export default function AccountDrawer() {
               <div className="order__block">
                 <h4 className="order__blocktitle">Tracking number</h4>
                 <p className="order__tracking">{selected.tracking_number}</p>
+                {selected.tracking_url && (
+                  <div className="order__track">
+                    <a
+                      className="order__tracklink"
+                      href={selected.tracking_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Track with USPS
+                    </a>
+                    <div className="order__qr">
+                      <QRCodeSVG
+                        value={selected.tracking_url}
+                        size={132}
+                        bgColor="#ffffff"
+                        fgColor="#0a0a0a"
+                        level="M"
+                        marginSize={2}
+                      />
+                      <span className="order__qrhint">Scan to track on your phone</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

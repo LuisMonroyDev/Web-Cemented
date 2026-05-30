@@ -36,6 +36,7 @@ class OrderSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     can_cancel = serializers.SerializerMethodField()
     shipping = serializers.SerializerMethodField()
+    tracking_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -44,10 +45,12 @@ class OrderSerializer(serializers.ModelSerializer):
             "status",
             "status_display",
             "total",
+            "shipping_cost",
             "created_at",
             "items",
             "can_cancel",
             "tracking_number",
+            "tracking_url",
             "cancel_reason",
             "shipping",
         ]
@@ -56,6 +59,12 @@ class OrderSerializer(serializers.ModelSerializer):
         # Cancelable (and refundable) only before it ships. Once shipped,
         # delivered, or already canceled there's nothing to cancel here.
         return order.status in Order.CANCELABLE_STATUSES
+
+    def get_tracking_url(self, order):
+        # Public USPS tracking page for the number the band entered. The
+        # frontend uses this both for the link and the QR code, so the URL
+        # format lives here (one source of truth) rather than in the client.
+        return Order.usps_tracking_url(order.tracking_number)
 
     def get_shipping(self, order):
         # Surface the address only when we actually captured one.

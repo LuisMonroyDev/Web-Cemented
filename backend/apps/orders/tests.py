@@ -9,6 +9,7 @@ from rest_framework.test import APIClient
 from apps.store.models import Product
 
 from .models import Cart, CartItem, Order, OrderItem
+from .serializers import OrderSerializer
 from .services import cancel_and_refund
 
 
@@ -104,14 +105,22 @@ class CheckoutTests(TestCase):
         self.assertEqual(res.data["checkout_url"], "https://stripe.test/cs_test_123")
 
         order = Order.objects.get()
-        self.assertEqual(str(order.total), "40.00")
+        # Items ($20 × 2 = $40) + flat shipping ($5) = $45 charged.
+        self.assertEqual(str(order.shipping_cost), "5.00")
+        self.assertEqual(str(order.total), "45.00")
         self.assertEqual(order.items.count(), 1)
         self.assertEqual(order.stripe_session_id, "cs_test_123")
         # Stripe was asked to charge 2000 cents/unit, qty 2.
         kwargs = mock_create.call_args.kwargs
         self.assertEqual(kwargs["line_items"][0]["price_data"]["unit_amount"], 2000)
-        # ...and to collect a shipping address on its checkout page.
-        self.assertIn("US", kwargs["shipping_address_collection"]["allowed_countries"])
+        # ...to collect a shipping address, US only (no Canada)...
+        self.assertEqual(
+            kwargs["shipping_address_collection"]["allowed_countries"], ["US"]
+        )
+        # ...and to charge a flat $5 (500-cent) shipping fee.
+        rate = kwargs["shipping_options"][0]["shipping_rate_data"]
+        self.assertEqual(rate["fixed_amount"]["amount"], 500)
+        self.assertEqual(rate["fixed_amount"]["currency"], "usd")
 
 
 @override_settings(STRIPE_WEBHOOK_SECRET="whsec_dummy")
@@ -186,11 +195,21 @@ class OrdersApiTests(TestCase):
     def test_orders_require_auth(self):
         self.assertIn(self.client.get("/api/orders/").status_code, (401, 403))
 
-    def test_lists_users_paid_and_canceled_orders(self):
+    def test_lists_all_non_pending_orders(self):
+        # Every real order stays visible the whole way through fulfilment and
+        # after a refund — so an order doesn't vanish from the customer's list
+        # the moment the band advances it past "paid". Only pending (abandoned
+        # checkout) is hidden, and another user's orders never leak in.
         other = get_user_model().objects.create_user(
             "other", "other@example.com", "Sup3rSecret!"
         )
         paid = Order.objects.create(user=self.user, status=Order.STATUS_PAID, total=40)
+        fulfilling = Order.objects.create(
+            user=self.user, status=Order.STATUS_FULFILLING, total=30
+        )
+        shipped = Order.objects.create(
+            user=self.user, status=Order.STATUS_SHIPPED, total=25
+        )
         canceled = Order.objects.create(
             user=self.user, status=Order.STATUS_CANCELED, total=15
         )
@@ -200,8 +219,19 @@ class OrdersApiTests(TestCase):
         self.client.force_authenticate(self.user)
         res = self.client.get("/api/orders/")
         self.assertEqual(res.status_code, 200)
-        # Paid + canceled (newest first), but not pending and not other users'.
-        self.assertEqual({o["id"] for o in res.data}, {paid.id, canceled.id})
+        self.assertEqual(
+            {o["id"] for o in res.data},
+            {paid.id, fulfilling.id, shipped.id, canceled.id},
+        )
+
+    def test_order_includes_shipping_cost(self):
+        # The drawer shows shipping as its own line, so the API must expose it.
+        Order.objects.create(
+            user=self.user, status=Order.STATUS_PAID, total=45, shipping_cost=5
+        )
+        self.client.force_authenticate(self.user)
+        res = self.client.get("/api/orders/")
+        self.assertEqual(res.data[0]["shipping_cost"], "5.00")
 
     def test_can_cancel_flag_reflects_status(self):
         paid = Order.objects.create(user=self.user, status=Order.STATUS_PAID, total=40)
@@ -395,6 +425,29 @@ class OrderEmailTests(TestCase):
         self.assertIn("fan@example.com", recipients)
         self.assertIn("band@cemented.band", recipients)
 
+    def test_email_shows_shipping_line_when_charged(self):
+        from apps.orders.emails import send_order_emails
+
+        user = get_user_model().objects.create_user(
+            "fan", "fan@example.com", "Sup3rSecret!"
+        )
+        order = Order.objects.create(
+            user=user,
+            email="fan@example.com",
+            status=Order.STATUS_PAID,
+            total=45,
+            shipping_cost=5,
+        )
+        OrderItem.objects.create(order=order, name="Tee", unit_price=40, quantity=1)
+
+        send_order_emails(order)
+
+        # The flat shipping fee appears as its own line in the email body.
+        self.assertTrue(
+            any("Shipping: $5" in message.body for message in mail.outbox),
+            "shipping should be itemized in the order email",
+        )
+
 
 class OrderEmailNormalizationTests(TestCase):
     """order.email is stored canonically (trimmed + lowercased). A stray
@@ -410,3 +463,25 @@ class OrderEmailNormalizationTests(TestCase):
         order = Order.objects.create(email="", total=10)
         order.refresh_from_db()
         self.assertEqual(order.email, "")
+
+
+class OrderSerializerTrackingTests(TestCase):
+    """The serialized order exposes a ready-to-use USPS tracking URL so the
+    frontend can render a link + QR without re-deriving the URL format."""
+
+    def test_tracking_url_present_when_number_set(self):
+        order = Order.objects.create(
+            email="fan@example.com", total=20, tracking_number="9400111899223333"
+        )
+        data = OrderSerializer(order).data
+        self.assertEqual(data["tracking_number"], "9400111899223333")
+        self.assertEqual(
+            data["tracking_url"],
+            "https://tools.usps.com/go/TrackConfirmAction?tLabels=9400111899223333",
+        )
+
+    def test_tracking_url_none_when_no_number(self):
+        order = Order.objects.create(email="fan@example.com", total=20)
+        data = OrderSerializer(order).data
+        self.assertEqual(data["tracking_number"], "")
+        self.assertIsNone(data["tracking_url"])
