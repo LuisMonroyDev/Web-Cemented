@@ -34,6 +34,13 @@ function scrollToSection(event, id) {
   animateScrollTo(top);
 }
 
+// Logo click scrolls back to the top. preventDefault stops the browser from
+// appending "#top" to the URL (and matches the nav links' smooth-scroll feel).
+function scrollToTop(event) {
+  event.preventDefault();
+  animateScrollTo(0);
+}
+
 export default function Header() {
   const [logoOk, setLogoOk] = useState(true);
   const { user, count, openAuth, openCart, openAccount } = useStore();
@@ -44,7 +51,7 @@ export default function Header() {
 
       <div className="hdr__brand">
         {logoOk ? (
-          <a className="hdr__logolink" href="#top">
+          <a className="hdr__logolink" href="#top" onClick={scrollToTop}>
             <img
               className="hdr__logo"
               src={LOGO_SRC}
@@ -53,7 +60,7 @@ export default function Header() {
             />
           </a>
         ) : (
-          <a className="hdr__wordmark" href="#top">
+          <a className="hdr__wordmark" href="#top" onClick={scrollToTop}>
             Cemented
           </a>
         )}
