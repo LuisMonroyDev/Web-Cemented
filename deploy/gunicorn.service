@@ -1,0 +1,54 @@
+# Gunicorn systemd service for the Cemented Django backend.
+#
+# systemd runs Gunicorn as a managed background service: started on boot,
+# restarted on crash, controllable with systemctl and inspectable with
+# journalctl. This is the production equivalent of `manage.py runserver`.
+#
+# Install on the Droplet:
+#   sudo cp deploy/gunicorn.service /etc/systemd/system/gunicorn.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now gunicorn      # start now + on every boot
+#   systemctl status gunicorn                 # expect "active (running)"
+#   journalctl -u gunicorn -f                 # live logs (tracebacks land here)
+#
+# Replace the User and the /home/cemented/... paths to match how you cloned
+# the repo. Assumptions below:
+#   - a non-root user "cemented" owns the app
+#   - the repo is at /home/cemented/Web-Cemented
+#   - the virtualenv is at backend/.venv
+
+[Unit]
+Description=Gunicorn (Cemented Django backend)
+# Wait for the network before starting.
+After=network.target
+
+[Service]
+# Run as an unprivileged app user — never root.
+User=cemented
+Group=cemented
+
+# The Django project root (where manage.py and config/ live).
+WorkingDirectory=/home/cemented/Web-Cemented/backend
+
+# Select production settings. All secrets (DJANGO_SECRET_KEY, DATABASE_URL,
+# Stripe + Resend keys, FRONTEND_ORIGIN, etc.) are read from backend/.env by
+# the app itself — settings/base.py calls load_dotenv(BASE_DIR / ".env") — so
+# there is no EnvironmentFile here and no secrets in this unit.
+Environment=DJANGO_SETTINGS_MODULE=config.settings.prod
+
+# Start Gunicorn from the venv, bound to a local-only port. nginx proxies to
+# this. 3 workers is a sane default (~2 x CPU cores + 1); raise it later if
+# needed. To test Gunicorn alone on the box: `curl http://127.0.0.1:8000/admin/login/`
+ExecStart=/home/cemented/Web-Cemented/backend/.venv/bin/gunicorn \
+    --workers 3 \
+    --bind 127.0.0.1:8000 \
+    --access-logfile - \
+    --error-logfile - \
+    config.wsgi:application
+
+# Auto-restart on failure.
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
