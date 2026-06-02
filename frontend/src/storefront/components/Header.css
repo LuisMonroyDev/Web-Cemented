@@ -93,20 +93,64 @@
   color: var(--red-bright);
 }
 
+/* Hamburger toggle — only shown on mobile (see media query). */
+.hdr__burger {
+  display: none;
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--bone);
+}
+.hdr__burger svg line {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.hdr__burger:hover {
+  color: var(--red-bright);
+}
+
 @media (max-width: 700px) {
+  /* Keep the full-size, centered logo + tagline (the brand). Stack a
+     hamburger centered beneath them; the nav itself collapses into it. */
   .hdr {
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
-    gap: 12px;
+    gap: 10px;
   }
   .hdr__est {
     display: none;
   }
+  /* Logo + [ Est. 2025 ] keep their desktop size and centering (base rules). */
+  .hdr__burger {
+    display: inline-flex;
+    align-items: center;
+    justify-self: center; /* sits centered under the tagline */
+  }
+  /* Menu drops as a full-width panel from the header's bottom edge. The
+     stretch override cancels the desktop `justify-self: end`, which would
+     otherwise shrink this abspos panel to content and pin it right. */
   .hdr__nav {
-    justify-self: center;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 16px;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    justify-self: stretch;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: 20px var(--pad);
+    background: var(--bg);
+    border-bottom: 1px solid var(--hairline);
+    z-index: 20;
+  }
+  .hdr__nav--open {
+    display: flex;
+  }
+  .hdr__login {
+    padding: 7px 22px;
   }
 }

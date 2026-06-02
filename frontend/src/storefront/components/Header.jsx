@@ -43,7 +43,12 @@ function scrollToTop(event) {
 
 export default function Header() {
   const [logoOk, setLogoOk] = useState(true);
+  // Mobile only: the nav collapses behind a hamburger. On desktop the nav is
+  // always shown (CSS), so this flag is a no-op there.
+  const [menuOpen, setMenuOpen] = useState(false);
   const { user, count, openAuth, openCart, openAccount } = useStore();
+
+  const closeMenu = () => setMenuOpen(false);
 
   return (
     <header className="hdr">
@@ -51,7 +56,14 @@ export default function Header() {
 
       <div className="hdr__brand">
         {logoOk ? (
-          <a className="hdr__logolink" href="#top" onClick={scrollToTop}>
+          <a
+            className="hdr__logolink"
+            href="#top"
+            onClick={(e) => {
+              scrollToTop(e);
+              closeMenu();
+            }}
+          >
             <img
               className="hdr__logo"
               src={LOGO_SRC}
@@ -60,25 +72,84 @@ export default function Header() {
             />
           </a>
         ) : (
-          <a className="hdr__wordmark" href="#top" onClick={scrollToTop}>
+          <a
+            className="hdr__wordmark"
+            href="#top"
+            onClick={(e) => {
+              scrollToTop(e);
+              closeMenu();
+            }}
+          >
             Cemented
           </a>
         )}
         <span className="hdr__tag">[ Est. 2025 ]</span>
       </div>
 
-      <nav className="hdr__nav">
-        <a href="#music" onClick={(e) => scrollToSection(e, "music")}>Music</a>
-        <a href="#merch" onClick={(e) => scrollToSection(e, "merch")}>Merch</a>
-        <button type="button" className="hdr__btn" onClick={openCart}>
+      {/* Mobile menu toggle — hidden on desktop via CSS. */}
+      <button
+        type="button"
+        className="hdr__burger"
+        aria-label={menuOpen ? "Close menu" : "Open menu"}
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((open) => !open)}
+      >
+        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      </button>
+
+      <nav className={`hdr__nav${menuOpen ? " hdr__nav--open" : ""}`}>
+        <a
+          href="#music"
+          onClick={(e) => {
+            scrollToSection(e, "music");
+            closeMenu();
+          }}
+        >
+          Music
+        </a>
+        <a
+          href="#merch"
+          onClick={(e) => {
+            scrollToSection(e, "merch");
+            closeMenu();
+          }}
+        >
+          Merch
+        </a>
+        <button
+          type="button"
+          className="hdr__btn"
+          onClick={() => {
+            openCart();
+            closeMenu();
+          }}
+        >
           Cart ({count})
         </button>
         {user ? (
-          <button type="button" className="hdr__btn hdr__account" onClick={openAccount}>
+          <button
+            type="button"
+            className="hdr__btn hdr__account"
+            onClick={() => {
+              openAccount();
+              closeMenu();
+            }}
+          >
             {user.username}
           </button>
         ) : (
-          <button type="button" className="hdr__btn hdr__login" onClick={openAuth}>
+          <button
+            type="button"
+            className="hdr__btn hdr__login"
+            onClick={() => {
+              openAuth();
+              closeMenu();
+            }}
+          >
             Log in
           </button>
         )}
