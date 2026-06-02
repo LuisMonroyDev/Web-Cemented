@@ -15,7 +15,9 @@ class ProductListView(generics.ListAPIView):
     serializer_class = ProductSerializer
 
     def get_queryset(self):
-        return Product.objects.filter(is_active=True)
+        # Prefetch sizes so serializing each product's size list (and its
+        # size-aware stock total) doesn't fire a query per product.
+        return Product.objects.filter(is_active=True).prefetch_related("sizes")
 
 
 class GalleryListView(generics.ListAPIView):

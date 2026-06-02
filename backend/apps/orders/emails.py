@@ -16,7 +16,10 @@ logger = logging.getLogger(__name__)
 
 def _summary(order, items):
     lines = "\n".join(
-        f"  {item.quantity} x {item.name} — ${item.line_total}" for item in items
+        f"  {item.quantity} x {item.name}"
+        f"{f' ({item.size_label})' if item.size_label else ''}"
+        f" — ${item.line_total}"
+        for item in items
     )
     summary = f"Order #{order.id}\n\n{lines}\n"
     if order.shipping_cost:

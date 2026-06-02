@@ -26,7 +26,7 @@ class ProductListingTests(TestCase):
         product = self.client.get("/api/products/").json()[0]
         self.assertEqual(
             set(product),
-            {"id", "name", "price", "description", "image", "stock", "status", "order"},
+            {"id", "name", "price", "description", "image", "stock", "status", "order", "sizes"},
         )
         self.assertEqual(product["status"], "Active")
 

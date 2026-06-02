@@ -101,6 +101,23 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+/* In-cart size swap. Kept compact so it reads as a line detail, not a form. */
+.cart__sizesel {
+  align-self: flex-start;
+  padding: 3px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  color: var(--bone);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.cart__sizesel:hover {
+  border-color: var(--bone-dim);
+}
 .cart__price {
   margin: 0;
   font-size: 12px;

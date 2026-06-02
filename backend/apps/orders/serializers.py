@@ -7,11 +7,18 @@ from .models import Cart, CartItem, Order, OrderItem
 
 class CartItemSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
+    size = serializers.SerializerMethodField()
     line_total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
     class Meta:
         model = CartItem
-        fields = ["id", "product", "quantity", "line_total"]
+        fields = ["id", "product", "size", "quantity", "line_total"]
+
+    def get_size(self, item):
+        # {id, label} when the line has a size, else null.
+        if item.size_id:
+            return {"id": item.size_id, "label": item.size.label}
+        return None
 
 
 class CartSerializer(serializers.ModelSerializer):
@@ -28,7 +35,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = OrderItem
-        fields = ["id", "name", "unit_price", "quantity", "line_total"]
+        fields = ["id", "name", "size_label", "unit_price", "quantity", "line_total"]
 
 
 class OrderSerializer(serializers.ModelSerializer):

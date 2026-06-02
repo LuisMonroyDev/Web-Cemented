@@ -11,7 +11,7 @@ amounts. That's what makes the Stripe checkout safe.
 from django.conf import settings
 from django.db import models
 
-from apps.store.models import Product
+from apps.store.models import Product, ProductSize
 
 
 class Cart(models.Model):
@@ -32,18 +32,32 @@ class Cart(models.Model):
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    # The chosen size, for products that have sizes. NULL for size-less products
+    # (a sticker, a vinyl), which keep a single line per product as before.
+    size = models.ForeignKey(
+        ProductSize, on_delete=models.CASCADE, null=True, blank=True
+    )
     quantity = models.PositiveIntegerField(default=1)
 
     class Meta:
-        unique_together = ["cart", "product"]
+        # A cart holds one line per (product, size): adding the same size again
+        # bumps its quantity instead of creating a duplicate row.
+        unique_together = ["cart", "product", "size"]
         ordering = ["id"]
 
     def __str__(self):
-        return f"{self.quantity} x {self.product}"
+        suffix = f" ({self.size.label})" if self.size_id else ""
+        return f"{self.quantity} x {self.product}{suffix}"
 
     @property
     def line_total(self):
         return self.product.price * self.quantity
+
+    @property
+    def available_stock(self):
+        """How many units this line may hold — the chosen size's stock, or the
+        product's flat stock when the line has no size."""
+        return self.size.stock if self.size_id else self.product.stock
 
 
 class Order(models.Model):
@@ -156,12 +170,19 @@ class Order(models.Model):
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
+    # The size FK is kept (SET_NULL) for restocking on a refund; size_label is
+    # the snapshot that survives even if the size row is later deleted.
+    size = models.ForeignKey(
+        ProductSize, on_delete=models.SET_NULL, null=True, blank=True
+    )
     name = models.CharField(max_length=120)  # snapshot at purchase time
+    size_label = models.CharField(max_length=20, blank=True)  # snapshot
     unit_price = models.DecimalField(max_digits=8, decimal_places=2)  # snapshot
     quantity = models.PositiveIntegerField(default=1)
 
     def __str__(self):
-        return f"{self.quantity} x {self.name}"
+        suffix = f" ({self.size_label})" if self.size_label else ""
+        return f"{self.quantity} x {self.name}{suffix}"
 
     @property
     def line_total(self):

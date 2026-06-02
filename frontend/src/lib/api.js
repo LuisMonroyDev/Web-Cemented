@@ -60,10 +60,20 @@ export const fetchMe = () => request("/api/auth/me/");
 
 // --- cart ---
 export const fetchCart = () => request("/api/cart/");
-export const addToCart = (productId, quantity = 1) =>
-  request("/api/cart/items/", { method: "POST", body: { product_id: productId, quantity } });
+export const addToCart = (productId, quantity = 1, sizeId = null) =>
+  request("/api/cart/items/", {
+    method: "POST",
+    body: {
+      product_id: productId,
+      quantity,
+      // Only sized products send a size_id; size-less products omit it.
+      ...(sizeId != null ? { size_id: sizeId } : {}),
+    },
+  });
 export const updateCartItem = (itemId, quantity) =>
   request(`/api/cart/items/${itemId}/`, { method: "PATCH", body: { quantity } });
+export const changeCartItemSize = (itemId, sizeId) =>
+  request(`/api/cart/items/${itemId}/`, { method: "PATCH", body: { size_id: sizeId } });
 export const removeCartItem = (itemId) =>
   request(`/api/cart/items/${itemId}/`, { method: "DELETE" });
 

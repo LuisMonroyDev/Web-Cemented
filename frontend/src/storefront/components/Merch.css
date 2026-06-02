@@ -69,6 +69,55 @@
   color: var(--bone-dim);
 }
 
+/* Per-size selector (shirts etc.). Sold-out sizes stay visible but disabled
+   (greyed + struck through) so shoppers see the size exists but can't pick it. */
+.card__sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.card__size {
+  min-width: 40px;
+  padding: 7px 10px;
+  background: transparent;
+  color: var(--bone);
+  border: 1px solid var(--hairline);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.card__size:hover:not(:disabled) {
+  border-color: var(--bone);
+}
+.card__size--active {
+  border-color: var(--red);
+  color: var(--red-bright);
+  background: rgba(168, 29, 29, 0.12);
+}
+.card__size:disabled {
+  position: relative;
+  opacity: 0.4;
+  cursor: not-allowed;
+  color: var(--bone-dim);
+}
+/* Diagonal line corner-to-corner replaces the text strikethrough. */
+.card__size:disabled::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 0.1px),
+    var(--bone-dim) calc(50% - 0.1px),
+    var(--bone-dim) calc(50% + 0.1px),
+    transparent calc(50% + 0.1px)
+  );
+}
+
 /* Image becomes interactive when there's a photo to enlarge. */
 .card__img--zoomable {
   cursor: zoom-in;

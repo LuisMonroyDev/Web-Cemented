@@ -11,7 +11,8 @@ class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 0
     can_delete = False
-    readonly_fields = ("product", "name", "unit_price", "quantity", "line_total")
+    fields = ("product", "name", "size_label", "quantity", "unit_price", "line_total")
+    readonly_fields = ("product", "name", "size_label", "unit_price", "quantity", "line_total")
 
     @admin.display(description="Line total")
     def line_total(self, obj):
