@@ -5,6 +5,15 @@
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 }
 
+/* On phones the 260px min would force a single column; pin it to two so the
+   grid reads as n×2 instead of n×1. */
+@media (max-width: 700px) {
+  .merch__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+}
+
 .card {
   display: flex;
   flex-direction: column;

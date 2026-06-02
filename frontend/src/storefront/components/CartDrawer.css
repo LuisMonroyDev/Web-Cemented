@@ -14,7 +14,9 @@
   right: 0;
   height: 100%;
   width: 380px;
-  max-width: 92vw;
+  /* Always leave a ~56px strip of scrim so the drawer never swallows the whole
+     screen on narrow phones (and stays an obvious tap-to-close target). */
+  max-width: calc(100vw - 56px);
   background: var(--surface);
   border-left: 1px solid var(--hairline);
   color: var(--bone);
