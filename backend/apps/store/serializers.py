@@ -1,7 +1,7 @@
 """Read-only serializers for the public storefront API."""
 from rest_framework import serializers
 
-from .models import GalleryImage, Product, SiteSettings
+from .models import GalleryImage, Product, ProductSize, SiteSettings
 
 
 def _abs_url(filefield, request):
@@ -16,13 +16,33 @@ def _abs_url(filefield, request):
     return request.build_absolute_uri(url) if request else url
 
 
+class ProductSizeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductSize
+        fields = ["id", "label", "stock"]
+
+
 class ProductSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
     status = serializers.ReadOnlyField()
+    # `stock` reports the size-aware total so the storefront's stock badge is
+    # correct whether or not the product has sizes.
+    stock = serializers.IntegerField(source="total_stock", read_only=True)
+    sizes = ProductSizeSerializer(many=True, read_only=True)
 
     class Meta:
         model = Product
-        fields = ["id", "name", "price", "description", "image", "stock", "status", "order"]
+        fields = [
+            "id",
+            "name",
+            "price",
+            "description",
+            "image",
+            "stock",
+            "status",
+            "sizes",
+            "order",
+        ]
 
     def get_image(self, obj):
         return _abs_url(obj.image, self.context.get("request"))

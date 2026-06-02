@@ -96,13 +96,13 @@ export function StoreProvider({ children }) {
   }, []);
 
   const addToCart = useCallback(
-    async (productId, quantity = 1) => {
+    async (productId, quantity = 1, sizeId = null) => {
       if (!user) {
         setAuthOpen(true); // must be signed in to have a cart
         return;
       }
       try {
-        setCart(await api.addToCart(productId, quantity));
+        setCart(await api.addToCart(productId, quantity, sizeId));
         setCartOpen(true);
       } catch {
         // e.g. a placeholder product that isn't in the DB — ignore
@@ -125,6 +125,12 @@ export function StoreProvider({ children }) {
     } catch {
       // ignore transient errors
     }
+  }, []);
+
+  // Change a line's size. Throws on failure (e.g. the new size is sold out) so
+  // the cart UI can show why the swap didn't take.
+  const changeItemSize = useCallback(async (itemId, sizeId) => {
+    setCart(await api.changeCartItemSize(itemId, sizeId));
   }, []);
 
   // Throws on failure (e.g. Stripe not configured) so the cart UI can show it.
@@ -161,6 +167,7 @@ export function StoreProvider({ children }) {
     addToCart,
     updateItem,
     removeItem,
+    changeItemSize,
     startCheckout,
   };
 

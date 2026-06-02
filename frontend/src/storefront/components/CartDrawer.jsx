@@ -3,8 +3,17 @@ import "./CartDrawer.css";
 import { useStore } from "../storeContext";
 
 export default function CartDrawer() {
-  const { cartOpen, closeCart, cart, user, updateItem, removeItem, startCheckout, openAuth } =
-    useStore();
+  const {
+    cartOpen,
+    closeCart,
+    cart,
+    user,
+    updateItem,
+    removeItem,
+    changeItemSize,
+    startCheckout,
+    openAuth,
+  } = useStore();
   const [error, setError] = useState("");
 
   if (!cartOpen) return null;
@@ -15,6 +24,15 @@ export default function CartDrawer() {
       await startCheckout();
     } catch (err) {
       setError(err.message || "Could not start checkout.");
+    }
+  };
+
+  const onSizeChange = async (itemId, sizeId) => {
+    setError("");
+    try {
+      await changeItemSize(itemId, Number(sizeId));
+    } catch (err) {
+      setError(err.message || "Couldn't change the size.");
     }
   };
 
@@ -64,6 +82,25 @@ export default function CartDrawer() {
                   />
                   <div className="cart__info">
                     <p className="cart__name">{item.product.name}</p>
+                    {item.size && (
+                      <select
+                        className="cart__sizesel"
+                        value={item.size.id}
+                        onChange={(e) => onSizeChange(item.id, e.target.value)}
+                        aria-label={`Size for ${item.product.name}`}
+                      >
+                        {(item.product.sizes || []).map((s) => (
+                          <option
+                            key={s.id}
+                            value={s.id}
+                            disabled={s.stock <= 0 && s.id !== item.size.id}
+                          >
+                            {s.label}
+                            {s.stock <= 0 ? " — sold out" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     <p className="cart__price">${item.product.price}</p>
                     <div className="cart__qty">
                       <button type="button" onClick={() => updateItem(item.id, item.quantity - 1)} aria-label="Decrease">

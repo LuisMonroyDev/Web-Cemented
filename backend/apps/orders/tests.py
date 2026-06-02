@@ -6,7 +6,7 @@ from django.core import mail
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.store.models import Product
+from apps.store.models import Product, ProductSize
 
 from .models import Cart, CartItem, Order, OrderItem
 from .serializers import OrderSerializer
@@ -69,6 +69,249 @@ class CartTests(TestCase):
         )
         self.assertEqual(res.status_code, 201)
         self.assertEqual(res.data["items"][0]["quantity"], 10)
+
+
+class SizedCartTests(TestCase):
+    """Adding sized products to the cart: a size is required, sold-out sizes are
+    refused, quantity is capped at the size's stock, and each size is its own
+    cart line."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = get_user_model().objects.create_user(
+            "fan", "fan@example.com", "Sup3rSecret!"
+        )
+        # Flat stock 0 on purpose — sized products ignore it.
+        self.product = Product.objects.create(
+            name="Tour Tee", price=20, stock=0, is_active=True
+        )
+        self.small = ProductSize.objects.create(
+            product=self.product, label="S", stock=5, order=1
+        )
+        self.medium = ProductSize.objects.create(
+            product=self.product, label="M", stock=0, order=2
+        )
+        self.client.force_authenticate(self.user)
+
+    def _add(self, **body):
+        return self.client.post("/api/cart/items/", body, format="json")
+
+    def test_sized_product_requires_a_size(self):
+        res = self._add(product_id=self.product.id, quantity=1)
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(CartItem.objects.count(), 0)
+
+    def test_add_with_size_records_the_size_on_the_line(self):
+        res = self._add(product_id=self.product.id, size_id=self.small.id, quantity=2)
+        self.assertEqual(res.status_code, 201)
+        line = res.data["items"][0]
+        self.assertEqual(line["size"]["label"], "S")
+        self.assertEqual(line["quantity"], 2)
+
+    def test_cannot_add_a_sold_out_size(self):
+        res = self._add(product_id=self.product.id, size_id=self.medium.id, quantity=1)
+        self.assertEqual(res.status_code, 400)
+
+    def test_quantity_capped_at_size_stock(self):
+        res = self._add(product_id=self.product.id, size_id=self.small.id, quantity=50)
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data["items"][0]["quantity"], 5)
+
+    def test_size_must_belong_to_the_product(self):
+        other = Product.objects.create(name="Other", price=5, stock=0, is_active=True)
+        foreign = ProductSize.objects.create(product=other, label="L", stock=3)
+        res = self._add(product_id=self.product.id, size_id=foreign.id, quantity=1)
+        self.assertEqual(res.status_code, 400)
+
+    def test_each_size_is_its_own_line_same_size_increments(self):
+        self.medium.stock = 3
+        self.medium.save(update_fields=["stock"])
+        self._add(product_id=self.product.id, size_id=self.small.id, quantity=1)
+        self._add(product_id=self.product.id, size_id=self.small.id, quantity=1)  # bump S
+        self._add(product_id=self.product.id, size_id=self.medium.id, quantity=1)
+        cart = self.client.get("/api/cart/").data
+        by_label = {i["size"]["label"]: i["quantity"] for i in cart["items"]}
+        self.assertEqual(by_label, {"S": 2, "M": 1})
+
+
+class CartSizeChangeTests(TestCase):
+    """Swapping a cart line's size in place: the new size must belong to the
+    product and be in stock, quantity is clamped, and swapping to a size already
+    in the cart merges the two lines."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = get_user_model().objects.create_user(
+            "fan", "fan@example.com", "Sup3rSecret!"
+        )
+        self.product = Product.objects.create(
+            name="Tour Tee", price=20, stock=0, is_active=True
+        )
+        self.small = ProductSize.objects.create(
+            product=self.product, label="S", stock=5, order=1
+        )
+        self.medium = ProductSize.objects.create(
+            product=self.product, label="M", stock=4, order=2
+        )
+        self.large = ProductSize.objects.create(
+            product=self.product, label="L", stock=0, order=3
+        )  # sold out
+        self.client.force_authenticate(self.user)
+
+    def _add(self, size, qty=1):
+        return self.client.post(
+            "/api/cart/items/",
+            {"product_id": self.product.id, "size_id": size.id, "quantity": qty},
+            format="json",
+        )
+
+    def _patch(self, item_id, **body):
+        return self.client.patch(f"/api/cart/items/{item_id}/", body, format="json")
+
+    def test_swap_size_updates_the_line(self):
+        item_id = self._add(self.small, qty=2).data["items"][0]["id"]
+        res = self._patch(item_id, size_id=self.medium.id)
+        self.assertEqual(res.status_code, 200)
+        line = res.data["items"][0]
+        self.assertEqual(line["size"]["label"], "M")
+        self.assertEqual(line["quantity"], 2)
+
+    def test_swap_to_sold_out_size_rejected(self):
+        item_id = self._add(self.small).data["items"][0]["id"]
+        res = self._patch(item_id, size_id=self.large.id)
+        self.assertEqual(res.status_code, 400)
+
+    def test_swap_to_foreign_size_rejected(self):
+        other = Product.objects.create(name="Other", price=5, stock=0, is_active=True)
+        foreign = ProductSize.objects.create(product=other, label="XL", stock=3)
+        item_id = self._add(self.small).data["items"][0]["id"]
+        res = self._patch(item_id, size_id=foreign.id)
+        self.assertEqual(res.status_code, 400)
+
+    def test_swap_clamps_quantity_to_new_size_stock(self):
+        item_id = self._add(self.small, qty=5).data["items"][0]["id"]  # S has 5
+        res = self._patch(item_id, size_id=self.medium.id)  # M only has 4
+        self.assertEqual(res.data["items"][0]["quantity"], 4)
+
+    def test_swap_into_existing_size_merges_and_clamps(self):
+        s_id = self._add(self.small, qty=2).data["items"][0]["id"]
+        self._add(self.medium, qty=3)  # separate M line
+        # Swap the S line to M: 3 + 2 = 5, clamped to M's stock of 4.
+        res = self._patch(s_id, size_id=self.medium.id)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data["items"]), 1)  # merged into one line
+        line = res.data["items"][0]
+        self.assertEqual(line["size"]["label"], "M")
+        self.assertEqual(line["quantity"], 4)
+
+
+@override_settings(STRIPE_SECRET_KEY="sk_test_dummy")
+class SizedCheckoutTests(TestCase):
+    @patch("apps.orders.views.stripe.checkout.Session.create")
+    def test_checkout_snapshots_size_label_and_names_stripe_line(self, mock_create):
+        mock_create.return_value = type(
+            "Session", (), {"id": "cs_1", "url": "https://stripe.test/cs_1"}
+        )()
+        user = get_user_model().objects.create_user(
+            "fan", "fan@example.com", "Sup3rSecret!"
+        )
+        product = Product.objects.create(name="Tour Tee", price=20, stock=0, is_active=True)
+        size = ProductSize.objects.create(product=product, label="M", stock=5)
+        client = APIClient()
+        client.force_authenticate(user)
+        client.post(
+            "/api/cart/items/",
+            {"product_id": product.id, "size_id": size.id, "quantity": 1},
+            format="json",
+        )
+        res = client.post("/api/checkout/")
+        self.assertEqual(res.status_code, 200)
+        item = OrderItem.objects.get()
+        self.assertEqual(item.size_id, size.id)
+        self.assertEqual(item.size_label, "M")  # snapshot survives size deletion
+        # The hosted Stripe line shows the size so the customer/receipt sees it.
+        line_name = mock_create.call_args.kwargs["line_items"][0]["price_data"][
+            "product_data"
+        ]["name"]
+        self.assertEqual(line_name, "Tour Tee — M")
+
+
+@override_settings(STRIPE_WEBHOOK_SECRET="whsec_dummy")
+class SizedFulfilmentTests(TestCase):
+    @patch("apps.orders.views.stripe.Webhook.construct_event")
+    def test_fulfilment_decrements_the_size_not_flat_stock(self, mock_construct):
+        user = get_user_model().objects.create_user(
+            "fan", "fan@example.com", "Sup3rSecret!"
+        )
+        product = Product.objects.create(name="Tee", price=20, stock=99, is_active=True)
+        size = ProductSize.objects.create(product=product, label="M", stock=5)
+        order = Order.objects.create(user=user, status=Order.STATUS_PENDING, total=40)
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            size=size,
+            name="Tee",
+            size_label="M",
+            unit_price=20,
+            quantity=2,
+        )
+        session_obj = stripe.checkout.Session.construct_from(
+            {
+                "metadata": {"order_id": str(order.id)},
+                "payment_intent": "pi_1",
+                "client_reference_id": str(order.id),
+            },
+            "sk_test_dummy",
+        )
+        mock_construct.return_value = {
+            "type": "checkout.session.completed",
+            "data": {"object": session_obj},
+        }
+        res = self.client.post(
+            "/api/webhooks/stripe/",
+            data="{}",
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE="t=1,v1=sig",
+        )
+        self.assertEqual(res.status_code, 200)
+        size.refresh_from_db()
+        self.assertEqual(size.stock, 3)  # 5 - 2 sold
+        product.refresh_from_db()
+        self.assertEqual(product.stock, 99)  # flat stock untouched for a sized line
+
+
+@override_settings(STRIPE_SECRET_KEY="sk_test_dummy")
+class SizedCancelTests(TestCase):
+    @patch("apps.orders.services.stripe.Refund.create")
+    def test_cancel_restocks_the_size_not_flat_stock(self, mock_refund):
+        from .services import cancel_and_refund
+
+        user = get_user_model().objects.create_user(
+            "fan", "fan@example.com", "Sup3rSecret!"
+        )
+        product = Product.objects.create(name="Tee", price=20, stock=99, is_active=True)
+        size = ProductSize.objects.create(product=product, label="M", stock=1)
+        order = Order.objects.create(
+            user=user,
+            email="fan@example.com",
+            status=Order.STATUS_PAID,
+            total=40,
+            stripe_payment_intent="pi_1",
+        )
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            size=size,
+            name="Tee",
+            size_label="M",
+            unit_price=20,
+            quantity=2,
+        )
+        self.assertTrue(cancel_and_refund(order, reason="Ordered the wrong size"))
+        size.refresh_from_db()
+        self.assertEqual(size.stock, 3)  # 1 + 2 returned
+        product.refresh_from_db()
+        self.assertEqual(product.stock, 99)  # flat stock untouched
 
 
 @override_settings(STRIPE_SECRET_KEY="sk_test_dummy")

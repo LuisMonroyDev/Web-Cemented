@@ -40,9 +40,13 @@ def cancel_and_refund(order, reason=""):
             locked.cancel_reason = reason[:500]
         locked.save(update_fields=["status", "cancel_reason", "updated_at"])
 
-        # Put inventory back — mirrors the decrement at fulfilment.
-        for line in locked.items.all():
-            if line.product:
+        # Put inventory back — mirrors the decrement at fulfilment (per-size
+        # when the line had a size, otherwise the product's flat stock).
+        for line in locked.items.select_related("product", "size"):
+            if line.size_id:
+                line.size.stock += line.quantity
+                line.size.save(update_fields=["stock"])
+            elif line.product:
                 line.product.stock += line.quantity
                 line.product.save(update_fields=["stock"])
 

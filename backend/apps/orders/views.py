@@ -126,7 +126,28 @@ class CartItemsView(APIView):
             return Response(
                 {"detail": "Product not found."}, status=status.HTTP_404_NOT_FOUND
             )
-        if product.stock <= 0:
+
+        # Resolve the chosen size for products that have them. Size-less
+        # products keep a single line per product (size stays None).
+        size = None
+        if product.has_sizes:
+            size_id = request.data.get("size_id")
+            if not size_id:
+                return Response(
+                    {"detail": "Please choose a size."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            size = product.sizes.filter(id=size_id).first()
+            if size is None:
+                return Response(
+                    {"detail": "That size isn't available."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            available = size.stock
+        else:
+            available = product.stock
+
+        if available <= 0:
             return Response(
                 {"detail": "This item is out of stock."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -140,11 +161,12 @@ class CartItemsView(APIView):
         item, created = CartItem.objects.get_or_create(
             cart=cart,
             product=product,
-            defaults={"quantity": min(quantity, product.stock)},
+            size=size,
+            defaults={"quantity": min(quantity, available)},
         )
         if not created:
             # never let a line exceed what's actually in stock
-            item.quantity = min(item.quantity + quantity, product.stock)
+            item.quantity = min(item.quantity + quantity, available)
             item.save()
         return _cart_response(cart, request, status.HTTP_201_CREATED)
 
@@ -157,6 +179,41 @@ class CartItemDetailView(APIView):
         item = CartItem.objects.filter(id=item_id, cart=cart).first()
         if item is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
+
+        # Change this line's size (sized products only — size-less products
+        # ignore size_id). Validate the new size belongs to the product and is
+        # in stock; if the cart already holds a line for that size, fold this
+        # one into it, since (cart, product, size) is unique.
+        if "size_id" in request.data and item.product.has_sizes:
+            new_size = item.product.sizes.filter(id=request.data.get("size_id")).first()
+            if new_size is None:
+                return Response(
+                    {"detail": "That size isn't available."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if new_size.stock <= 0:
+                return Response(
+                    {"detail": f"Size {new_size.label} is sold out."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if new_size.id != item.size_id:
+                existing = (
+                    CartItem.objects.filter(cart=cart, product=item.product, size=new_size)
+                    .exclude(id=item.id)
+                    .first()
+                )
+                if existing is not None:
+                    existing.quantity = min(
+                        existing.quantity + item.quantity, new_size.stock
+                    )
+                    existing.save()
+                    item.delete()
+                else:
+                    item.size = new_size
+                    item.quantity = min(item.quantity, new_size.stock)
+                    item.save()
+            return _cart_response(cart, request)
+
         try:
             quantity = int(request.data.get("quantity", item.quantity))
         except (TypeError, ValueError):
@@ -164,7 +221,8 @@ class CartItemDetailView(APIView):
         if quantity <= 0:
             item.delete()
         else:
-            item.quantity = quantity
+            # Clamp to what's in stock for this line's size (or the product).
+            item.quantity = min(quantity, item.available_stock)
             item.save()
         return _cart_response(cart, request)
 
@@ -182,19 +240,22 @@ class CheckoutView(APIView):
 
     def post(self, request):
         cart = _get_cart(request.user)
-        items = list(cart.items.select_related("product"))
+        items = list(cart.items.select_related("product", "size"))
         if not items:
             return Response(
                 {"detail": "Your cart is empty."}, status=status.HTTP_400_BAD_REQUEST
             )
         # Re-check stock at checkout — it may have changed since items were added.
+        # Per-size when the line has a size, else the product's flat stock.
         for item in items:
-            if item.quantity > item.product.stock:
+            available = item.available_stock
+            if item.quantity > available:
+                label = f" ({item.size.label})" if item.size_id else ""
                 return Response(
                     {
                         "detail": (
-                            f"Not enough stock for {item.product.name} "
-                            f"(only {item.product.stock} left)."
+                            f"Not enough stock for {item.product.name}{label} "
+                            f"(only {available} left)."
                         )
                     },
                     status=status.HTTP_400_BAD_REQUEST,
@@ -217,11 +278,15 @@ class CheckoutView(APIView):
         for item in items:
             unit_price = item.product.price  # priced from the DB, never the client
             total += unit_price * item.quantity
+            # Show the size on the hosted Stripe page + receipt, e.g. "Tee — M".
+            display_name = item.product.name
+            if item.size_id:
+                display_name = f"{item.product.name} — {item.size.label}"
             line_items.append(
                 {
                     "price_data": {
                         "currency": "usd",
-                        "product_data": {"name": item.product.name},
+                        "product_data": {"name": display_name},
                         "unit_amount": int(unit_price * 100),  # cents
                     },
                     "quantity": item.quantity,
@@ -230,7 +295,9 @@ class CheckoutView(APIView):
             OrderItem.objects.create(
                 order=order,
                 product=item.product,
+                size=item.size,
                 name=item.product.name,
+                size_label=item.size.label if item.size_id else "",
                 unit_price=unit_price,
                 quantity=item.quantity,
             )
@@ -335,9 +402,13 @@ def _fulfill_checkout(session):
         order.shipping_postal_code = ship["postal_code"]
         order.shipping_country = ship["country"]
         order.save()
-        # Decrement inventory for what was purchased.
-        for line in order.items.all():
-            if line.product:
+        # Decrement inventory for what was purchased — the chosen size's stock
+        # when the line had a size, otherwise the product's flat stock.
+        for line in order.items.select_related("product", "size"):
+            if line.size_id:
+                line.size.stock = max(0, line.size.stock - line.quantity)
+                line.size.save(update_fields=["stock"])
+            elif line.product:
                 line.product.stock = max(0, line.product.stock - line.quantity)
                 line.product.save(update_fields=["stock"])
         if order.user_id:  # empty the cart now that they've paid

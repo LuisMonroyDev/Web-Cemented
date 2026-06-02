@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import GalleryImage, Product, SiteSettings
+from .models import GalleryImage, Product, ProductSize, SiteSettings
 
 
 def _thumb(image, height=40):
@@ -14,18 +14,50 @@ def _thumb(image, height=40):
     )
 
 
+class ProductSizeInline(admin.TabularInline):
+    """The "enter sizes by stock" flow: add a row per size (S/M/L/…) with its
+    own stock. Leave it empty and the product just uses its flat stock above."""
+
+    model = ProductSize
+    extra = 0
+    fields = ("label", "stock", "order")
+
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("thumbnail", "name", "price", "stock", "status", "is_active", "order")
+    list_display = ("thumbnail", "name", "price", "stock_display", "status", "is_active", "order")
     list_display_links = ("name",)
-    list_editable = ("price", "stock", "is_active", "order")
+    list_editable = ("price", "is_active", "order")
     list_filter = ("is_active",)
     search_fields = ("name", "description")
     readonly_fields = ("preview", "created_at", "updated_at")
+    inlines = [ProductSizeInline]
+
+    def get_exclude(self, request, obj=None):
+        """Hide the flat ``stock`` field once a product has sizes.
+
+        With sizes, stock is tracked per size and the flat field is ignored, so
+        showing an editable box that does nothing is just a trap. New products
+        and size-less products still show it (it's their real stock).
+        """
+        if obj and obj.has_sizes:
+            return ("stock",)
+        return super().get_exclude(request, obj)
 
     @admin.display(description="")
     def thumbnail(self, obj):
         return _thumb(obj.image)
+
+    @admin.display(description="Stock")
+    def stock_display(self, obj):
+        """Show the real sellable count so the number always matches Status.
+
+        For sized products that's the sum across sizes (the flat field is
+        ignored); the "(sizes)" tag signals stock is managed per size.
+        """
+        if obj.has_sizes:
+            return f"{obj.total_stock} (sizes)"
+        return obj.total_stock
 
     @admin.display(description="Status")
     def status(self, obj):

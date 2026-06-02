@@ -218,6 +218,7 @@ export default function AccountDrawer() {
                   <li key={item.id}>
                     <span>
                       {item.quantity}× {item.name}
+                      {item.size_label ? ` (${item.size_label})` : ""}
                     </span>
                     <span>${item.line_total}</span>
                   </li>
