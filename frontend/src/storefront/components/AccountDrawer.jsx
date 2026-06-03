@@ -4,7 +4,9 @@ import "./AccountDrawer.css";
 import { useStore } from "../storeContext";
 import { fetchOrders, cancelOrder } from "../../lib/api";
 
-// Placeholder — swap for the band's real contact address.
+// Contact address for signed-in customers. A domain alias (forwards to the
+// band inbox) so it reads professionally; logged-out visitors get bookings@
+// instead — see Header.jsx.
 const CONTACT_EMAIL = "contact@cemented.band";
 
 // The happy-path fulfilment lifecycle, in order. Canceled is handled apart.
