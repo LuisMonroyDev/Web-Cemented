@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import "./AccountDrawer.css";
 import { useStore } from "../storeContext";
@@ -40,6 +40,21 @@ export default function AccountDrawer() {
   const [notes, setNotes] = useState("");
   const [canceling, setCanceling] = useState(false);
   const [cancelError, setCancelError] = useState("");
+
+  // Reset the drawer's view + cached orders whenever the signed-in user
+  // changes (login, logout, or account switch). Orders live in this
+  // component's local state, and the drawer never unmounts — without this,
+  // one account could briefly see the previous account's cached order data.
+  useEffect(() => {
+    setView("menu");
+    setSelected(null);
+    setOrders([]);
+    setError("");
+    setShowCancelForm(false);
+    setReason("");
+    setNotes("");
+    setCancelError("");
+  }, [user?.id]);
 
   if (!accountOpen || !user) return null;
 
