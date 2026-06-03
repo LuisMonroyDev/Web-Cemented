@@ -7,6 +7,11 @@ import { useStore } from "../storeContext";
 // the header falls back to the "Cemented" wordmark.
 const LOGO_SRC = logoSrc;
 
+// Public booking contact for logged-out visitors (most likely promoters /
+// bookers). A domain alias that forwards to the band inbox so it reads
+// professionally. Signed-in customers get contact@ in the account drawer.
+const BOOKING_EMAIL = "bookings@cemented.band";
+
 // Slow, eased scroll so nav clicks "drag" the page rather than snap.
 let scrollFrame = null;
 function animateScrollTo(targetTop, duration = 900) {
@@ -142,16 +147,26 @@ export default function Header() {
             {user.username}
           </button>
         ) : (
-          <button
-            type="button"
-            className="hdr__btn hdr__login"
-            onClick={() => {
-              openAuth();
-              closeMenu();
-            }}
-          >
-            Log in
-          </button>
+          <>
+            {/* Public booking contact — bookers usually aren't logged in. */}
+            <a
+              className="hdr__booking"
+              href={`mailto:${BOOKING_EMAIL}`}
+              onClick={closeMenu}
+            >
+              Booking
+            </a>
+            <button
+              type="button"
+              className="hdr__btn hdr__login"
+              onClick={() => {
+                openAuth();
+                closeMenu();
+              }}
+            >
+              Log in
+            </button>
+          </>
         )}
       </nav>
     </header>
